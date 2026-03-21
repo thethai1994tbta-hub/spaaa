@@ -1,11 +1,10 @@
-import { ipcMain } from 'electron';
-import { getDatabase, allQuery, getQuery, runQuery } from '../database/db.js';
-import path from 'path';
-import os from 'os';
-import fs from 'fs';
+const { ipcMain } = require('electron');
+const { getDatabase, allQuery, getQuery, runQuery } = require('../database/db');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
-export function setupIPC() {
-  // Customers API
+function setupIPC() {
   ipcMain.handle('db:customers:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM customers ORDER BY name');
@@ -27,7 +26,6 @@ export function setupIPC() {
     }
   });
 
-  // Services API
   ipcMain.handle('db:services:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM services WHERE active=1 ORDER BY name');
@@ -49,7 +47,6 @@ export function setupIPC() {
     }
   });
 
-  // Staff API
   ipcMain.handle('db:staff:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM staff WHERE active=1 ORDER BY name');
@@ -71,7 +68,6 @@ export function setupIPC() {
     }
   });
 
-  // Bookings API
   ipcMain.handle('db:bookings:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM bookings ORDER BY booking_date DESC');
@@ -93,7 +89,6 @@ export function setupIPC() {
     }
   });
 
-  // Transactions API
   ipcMain.handle('db:transactions:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM transactions ORDER BY created_at DESC');
@@ -115,7 +110,6 @@ export function setupIPC() {
     }
   });
 
-  // Inventory API
   ipcMain.handle('db:inventory:getAll', async () => {
     try {
       const data = await allQuery('SELECT * FROM inventory ORDER BY name');
@@ -137,7 +131,6 @@ export function setupIPC() {
     }
   });
 
-  // Backup API
   ipcMain.handle('db:backup', () => {
     try {
       const appData = path.join(os.homedir(), 'AppData', 'Local', 'SpaApp');
@@ -162,7 +155,6 @@ export function setupIPC() {
     }
   });
 
-  // Dashboard stats
   ipcMain.handle('db:dashboard:getStats', async () => {
     try {
       const todayRevenue = await getQuery("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE DATE(created_at) = DATE('now')");
@@ -184,3 +176,5 @@ export function setupIPC() {
     }
   });
 }
+
+module.exports = { setupIPC };

@@ -1,7 +1,7 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
-import os from 'os';
-import fs from 'fs';
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
 const appData = path.join(os.homedir(), 'AppData', 'Local', 'SpaApp');
 const dbPath = path.join(appData, 'spa.db');
@@ -12,7 +12,7 @@ if (!fs.existsSync(appData)) {
 
 let db;
 
-export function getDatabase() {
+function getDatabase() {
   if (!db) {
     db = new sqlite3.Database(dbPath, (err) => {
       if (err) console.error('[DB] Error opening database:', err);
@@ -23,7 +23,7 @@ export function getDatabase() {
   return db;
 }
 
-export function initDatabase() {
+function initDatabase() {
   const database = getDatabase();
 
   database.serialize(() => {
@@ -126,7 +126,7 @@ export function initDatabase() {
   console.log('[DB] Database initialized at:', dbPath);
 }
 
-export function closeDatabase() {
+function closeDatabase() {
   if (db) {
     db.close((err) => {
       if (err) console.error('[DB] Error closing database:', err);
@@ -135,11 +135,11 @@ export function closeDatabase() {
   }
 }
 
-export function getDatabasePath() {
+function getDatabasePath() {
   return dbPath;
 }
 
-export function runQuery(sql, params = []) {
+function runQuery(sql, params = []) {
   return new Promise((resolve, reject) => {
     const database = getDatabase();
     database.run(sql, params, function(err) {
@@ -149,7 +149,7 @@ export function runQuery(sql, params = []) {
   });
 }
 
-export function getQuery(sql, params = []) {
+function getQuery(sql, params = []) {
   return new Promise((resolve, reject) => {
     const database = getDatabase();
     database.get(sql, params, (err, row) => {
@@ -159,7 +159,7 @@ export function getQuery(sql, params = []) {
   });
 }
 
-export function allQuery(sql, params = []) {
+function allQuery(sql, params = []) {
   return new Promise((resolve, reject) => {
     const database = getDatabase();
     database.all(sql, params, (err, rows) => {
@@ -168,3 +168,13 @@ export function allQuery(sql, params = []) {
     });
   });
 }
+
+module.exports = {
+  getDatabase,
+  initDatabase,
+  closeDatabase,
+  getDatabasePath,
+  runQuery,
+  getQuery,
+  allQuery,
+};

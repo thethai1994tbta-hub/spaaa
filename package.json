@@ -4,7 +4,6 @@
   "description": "Professional SPA Management System - Electron + React + SQLite",
   "main": "src/main/main.js",
   "homepage": "./",
-  "type": "module",
   "scripts": {
     "start": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
     "dev:electron": "cross-env NODE_ENV=development electron .",
