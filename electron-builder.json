@@ -1,0 +1,37 @@
+{
+  "appId": "com.spa.vip.management",
+  "productName": "SPA VIP Management",
+  "files": [
+    "dist/**/*",
+    "public/**/*",
+    "src/main/**/*",
+    "package.json"
+  ],
+  "directories": {
+    "buildResources": "public/images"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "public/images/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "SPA VIP Management"
+  }
+}

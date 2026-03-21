@@ -1,0 +1,74 @@
+{
+  "name": "spa-vip-management",
+  "version": "1.0.0",
+  "description": "Professional SPA Management System - Electron + React + SQLite",
+  "main": "src/main/main.js",
+  "homepage": "./",
+  "type": "module",
+  "scripts": {
+    "start": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
+    "dev:electron": "cross-env NODE_ENV=development electron .",
+    "dev:react": "vite",
+    "build": "npm run build:react && npm run build:electron",
+    "build:react": "vite build",
+    "build:electron": "electron-builder -w --publish never",
+    "build:exe": "npm run build",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "antd": "^5.11.0",
+    "axios": "^1.6.0",
+    "sqlite3": "^5.1.7",
+    "date-fns": "^2.30.0",
+    "pdfkit": "^0.13.0",
+    "qrcode.react": "^3.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "react-toastify": "^9.1.0",
+    "recharts": "^2.10.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.9.0",
+    "vite": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.spa.vip.management",
+    "productName": "SPA VIP Management",
+    "directories": {
+      "buildResources": "public",
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/images/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SPA VIP Management"
+    }
+  }
+}
