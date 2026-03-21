@@ -5,7 +5,7 @@
   "main": "src/main/main.js",
   "homepage": "./",
   "scripts": {
-    "prestart": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
+    "prestart": "node kill-port.js",
     "start": "concurrently \"npm run dev:electron\" \"npm run dev:react\"",
     "dev:electron": "cross-env NODE_ENV=development electron .",
     "dev:react": "vite",
