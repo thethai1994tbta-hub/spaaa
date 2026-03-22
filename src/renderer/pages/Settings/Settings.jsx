@@ -493,8 +493,8 @@ export default function Settings({ onSpaNameChange }) {
                       { collection: 'transactions', label: 'giao dịch', color: '#f5222d', title: 'Xóa Giao Dịch', isSpecial: true },
                       { collection: 'bookings', label: 'đặt lịch', color: '#fa8c16', title: 'Xóa Đặt Lịch' },
                       { collection: 'customers', label: 'khách hàng', color: '#1890ff', title: 'Xóa Khách Hàng' },
-                      { collection: 'attendance', label: 'chấm công', color: '#722ed1', title: 'Xóa Chấm Công', isAttendance: true },
-                    ].map(({ collection, label, color, title, isSpecial, isAttendance }) => (
+                      { collection: 'attendance', label: 'chấm công', color: '#722ed1', title: 'Xóa Chấm Công' },
+                    ].map(({ collection, label, color, title, isSpecial }) => (
                       <div key={collection} style={{ border: `1px solid ${color}30`, borderRadius: 8, padding: 12, minWidth: 160, background: '#fafafa' }}>
                         <div style={{ fontWeight: 600, color, marginBottom: 8 }}>{title}</div>
                         <Button
@@ -503,7 +503,7 @@ export default function Settings({ onSpaNameChange }) {
                           icon={<DeleteOutlined />}
                           loading={resetting}
                           disabled={isLocked}
-                          onClick={() => isSpecial ? handleResetTransactions() : isAttendance ? handleResetAttendance() : handleResetCollection(collection, label)}
+                          onClick={() => isSpecial ? handleResetTransactions() : handleResetCollection(collection, label)}
                         >
                           Xóa tất cả {label}
                         </Button>

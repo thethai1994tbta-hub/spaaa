@@ -257,6 +257,14 @@ function setupFirebaseIPC() {
   });
 
   // ==================== ATTENDANCE ====================
+  ipcMain.handle('db:attendance:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.ATTENDANCE, { field: 'date', direction: 'desc' });
+  });
+
+  ipcMain.handle('db:attendance:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.ATTENDANCE, id);
+  });
+
   ipcMain.handle('db:attendance:add', async (event, attendance) => {
     return addDocument(COLLECTIONS.ATTENDANCE, {
       staffId: attendance.staffId,
