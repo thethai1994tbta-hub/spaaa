@@ -202,7 +202,7 @@ const App = () => {
                 minHeight: 'calc(100vh - 134px)',
               }}
             >
-              {currentPage === 'dashboard' && <Dashboard />}
+              {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
               {currentPage === 'customers' && <Customers />}
               {currentPage === 'staff' && <Staff />}
               {currentPage === 'payment' && <Payment />}
