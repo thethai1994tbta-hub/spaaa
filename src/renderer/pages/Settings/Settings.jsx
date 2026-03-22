@@ -502,7 +502,6 @@ export default function Settings({ onSpaNameChange }) {
                           size="small"
                           icon={<DeleteOutlined />}
                           loading={resetting}
-                          disabled={isLocked}
                           onClick={() => isSpecial ? handleResetTransactions() : handleResetCollection(collection, label)}
                         >
                           Xóa tất cả {label}
