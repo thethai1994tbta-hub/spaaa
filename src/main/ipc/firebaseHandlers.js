@@ -244,6 +244,14 @@ function setupFirebaseIPC() {
     });
   });
 
+  ipcMain.handle('db:attendance:update', async (event, id, data) => {
+    return updateDocument(COLLECTIONS.ATTENDANCE, id, {
+      ...(data.checkOutTime && { checkOutTime: new Date(data.checkOutTime) }),
+      ...(data.hoursWorked !== undefined && { hoursWorked: data.hoursWorked }),
+      ...(data.status && { status: data.status }),
+    });
+  });
+
   // ==================== STOCK MOVEMENTS ====================
   ipcMain.handle('db:stock-movements:add', async (event, movement) => {
     return addDocument(COLLECTIONS.STOCK_MOVEMENTS, {

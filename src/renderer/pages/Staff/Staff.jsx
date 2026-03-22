@@ -29,6 +29,7 @@ import {
   DownloadOutlined,
   SearchOutlined,
   LoginOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
@@ -287,6 +288,48 @@ export default function Staff() {
     }
   };
 
+  const handleCheckOut = async (staffId) => {
+    try {
+      const today = dayjs().format('YYYY-MM-DD');
+      const result = await invoke('db:query', 'attendance', [
+        { field: 'staffId', operator: '==', value: staffId },
+      ]);
+      const records = result.data || result || [];
+      // Find today's record without a checkout
+      const todayRecord = records.find((r) => {
+        const d = toDate(r.date);
+        return d && dayjs(d).format('YYYY-MM-DD') === today && !r.checkOutTime;
+      });
+
+      if (!todayRecord) {
+        message.warning('Không tìm thấy bản ghi chấm công hôm nay hoặc đã check out rồi');
+        return;
+      }
+
+      const now = dayjs();
+      const checkIn = toDate(todayRecord.checkInTime);
+      const hoursWorked = checkIn
+        ? parseFloat(now.diff(dayjs(checkIn), 'hour', true).toFixed(1))
+        : 0;
+
+      const updateResult = await invoke('db:attendance:update', todayRecord.id, {
+        checkOutTime: now.toISOString(),
+        hoursWorked,
+      });
+
+      if (updateResult.success) {
+        message.success(`Check out lúc ${now.format('HH:mm')} — Làm ${hoursWorked}h`);
+        if (selectedStaff?.id === staffId) {
+          await loadAttendanceRecords(staffId);
+        }
+      } else {
+        message.error('Lỗi check out');
+      }
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
   const handleExportCSV = () => {
     if (staff.length === 0) {
       message.warning('Không có dữ liệu');
@@ -466,6 +509,14 @@ export default function Staff() {
             style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
           >
             Chấm
+          </Button>
+          <Button
+            size="small"
+            icon={<LogoutOutlined />}
+            onClick={() => handleCheckOut(record.id)}
+            style={{ color: '#595959', borderColor: '#d9d9d9' }}
+          >
+            Về
           </Button>
           <Button
             type="link"
@@ -674,6 +725,12 @@ export default function Staff() {
                   style={{ color: '#ff69b4', borderColor: '#ff69b4' }}
                 >
                   Chấm Công
+                </Button>
+                <Button
+                  onClick={() => handleCheckOut(selectedStaff.id)}
+                  icon={<LogoutOutlined />}
+                >
+                  Về
                 </Button>
                 <Button
                   type="primary"
