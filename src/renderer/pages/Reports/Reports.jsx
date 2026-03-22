@@ -269,7 +269,8 @@ export default function Reports() {
   }, [filteredTx, dateRange]);
 
   // ========== PROFIT ==========
-  const profit = revenueStats.totalRevenue - expenseStats.totalExpense;
+  const totalCommission = staffStats.reduce((sum, s) => sum + (s.commission || 0), 0);
+  const profit = revenueStats.totalRevenue - expenseStats.totalExpense - totalCommission;
 
   // ========== EXPORT CSV ==========
   const handleExport = (type) => {
@@ -412,7 +413,7 @@ export default function Reports() {
                     <Col xs={12} sm={6}>
                       <Card size="small" style={{ borderLeft: `4px solid ${profit >= 0 ? '#52c41a' : '#f5222d'}` }}>
                         <Statistic
-                          title="Lợi Nhuận (Thu - Chi)"
+                          title="Lợi Nhuận (Thu - Chi - HH)"
                           value={profit}
                           suffix="₫"
                           valueStyle={{ color: profit >= 0 ? '#52c41a' : '#f5222d', fontWeight: 700 }}
