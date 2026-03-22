@@ -60,20 +60,16 @@ const formatTime = (val) => {
   return d ? dayjs(d).format('HH:mm') : '-';
 };
 
-// Thresholds: before 09:00 = present, 09:00–12:00 = late, after 12:00 = absent
+// Threshold: before 09:00 = present, 09:00+ = late
+// Absent = không chấm công (nhập thủ công)
 const LATE_HOUR = 9;
 const LATE_MINUTE = 0;
-const ABSENT_HOUR = 12;
-const ABSENT_MINUTE = 0;
 
 const getAutoStatus = (checkInTime) => {
   if (!checkInTime) return 'present';
   const t = dayjs(checkInTime);
   const lateThreshold = t.clone().hour(LATE_HOUR).minute(LATE_MINUTE).second(0);
-  const absentThreshold = t.clone().hour(ABSENT_HOUR).minute(ABSENT_MINUTE).second(0);
-  if (t.isAfter(absentThreshold)) return 'absent';
-  if (t.isAfter(lateThreshold)) return 'late';
-  return 'present';
+  return t.isAfter(lateThreshold) ? 'late' : 'present';
 };
 
 export default function Staff() {
@@ -1113,7 +1109,7 @@ export default function Staff() {
           }}
         >
           <Form.Item
-            label={<span>Giờ Check In (*) <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>— Sau 09:00 "Đi Muộn", sau 12:00 "Vắng"</span></span>}
+            label={<span>Giờ Check In (*) <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>— Sau 09:00 tự động "Đi Muộn"</span></span>}
             name="checkInTime"
             rules={[{ required: true, message: 'Nhập giờ check in' }]}
           >
