@@ -660,14 +660,30 @@ export default function Customers({ onGoToPayment }) {
         extra={
           <Space>
             {!isEditMode && (
-              <Button
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={() => setIsEditMode(true)}
-                style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-              >
-                Sửa
-              </Button>
+              <>
+                <Button
+                  icon={<CalendarOutlined />}
+                  onClick={() => {
+                    setDetailDrawerOpen(false);
+                    setActiveTab('bookings');
+                    setIsBookingEditMode(false);
+                    bookingForm.resetFields();
+                    bookingForm.setFieldsValue({ customer_id: selectedCustomer?.id });
+                    setIsBookingModalOpen(true);
+                  }}
+                  style={{ color: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Đặt Lịch
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => setIsEditMode(true)}
+                  style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Sửa
+                </Button>
+              </>
             )}
             {isEditMode && (
               <>
