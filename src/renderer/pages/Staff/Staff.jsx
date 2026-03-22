@@ -93,7 +93,6 @@ export default function Staff() {
   // Data
   const [staff, setStaff] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [commissionData, setCommissionData] = useState(null);
 
   // UI States
   const [loading, setLoading] = useState(false);
@@ -103,7 +102,6 @@ export default function Staff() {
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
-  const [commissionMonth, setCommissionMonth] = useState(dayjs());
   const [selectedStaff, setSelectedStaff] = useState(null);
 
   // ============ LOAD DATA ============
@@ -143,46 +141,6 @@ export default function Staff() {
     } catch (error) {
       console.error('[Staff] Attendance load error:', error);
       setAttendanceRecords([]);
-    }
-  };
-
-  const loadCommissionData = async (staffId, commissionRate, month = null) => {
-    try {
-      const result = await invoke('db:query', 'transactions', [
-        { field: 'staffId', operator: '==', value: staffId },
-      ]);
-
-      const targetMonth = month || commissionMonth;
-      const monthStr = targetMonth.format('YYYY-MM');
-
-      let transactions = result.data || result || [];
-      const monthTransactions = transactions.filter((t) => {
-        const dateField = t.date || t.createdAt;
-        if (!dateField) return false;
-        const dateStr = toDate(dateField).toISOString();
-        return dateStr.startsWith(monthStr);
-      });
-
-      const totalRevenue = monthTransactions.reduce(
-        (sum, t) => sum + (Number(t.amount) || 0),
-        0
-      );
-      const commission = totalRevenue * (Number(commissionRate) / 100);
-
-      setCommissionData({
-        totalRevenue,
-        commissionRate,
-        totalCommission: commission,
-        transactions: monthTransactions,
-      });
-    } catch (error) {
-      console.error('[Staff] Commission load error:', error);
-      setCommissionData({
-        totalRevenue: 0,
-        commissionRate,
-        totalCommission: 0,
-        transactions: [],
-      });
     }
   };
 
@@ -391,7 +349,6 @@ export default function Staff() {
       commissionRate: s.commissionRate ?? s.commission_rate ?? 0,
     });
     loadAttendanceRecords(s.id);
-    loadCommissionData(s.id, s.commissionRate ?? s.commission_rate ?? 0);
   };
 
   // ============ COMPUTED ============
@@ -986,110 +943,6 @@ export default function Staff() {
                     </div>
                   );
                 })(),
-              },
-              {
-                key: 'commission',
-                label: 'Hoa Hồng',
-                children: (
-                  <div>
-                    <div style={{ marginBottom: 20 }}>
-                      <DatePicker
-                        picker="month"
-                        value={commissionMonth}
-                        onChange={(date) => {
-                          setCommissionMonth(date);
-                          loadCommissionData(
-                            selectedStaff.id,
-                            selectedStaff.commissionRate ?? selectedStaff.commission_rate ?? 0,
-                            date
-                          );
-                        }}
-                        format="MM/YYYY"
-                      />
-                    </div>
-                    {commissionData ? (
-                      <>
-                        <Row gutter={16} style={{ marginBottom: 20 }}>
-                          <Col span={8}>
-                            <Statistic
-                              title="Doanh Số"
-                              value={commissionData.totalRevenue}
-                              suffix="₫"
-                              formatter={(v) =>
-                                `${Number(v).toLocaleString('vi-VN')}`
-                              }
-                            />
-                          </Col>
-                          <Col span={8}>
-                            <Statistic
-                              title="Tỷ Lệ"
-                              value={Number(commissionData.commissionRate || 0).toFixed(1)}
-                              suffix="%"
-                            />
-                          </Col>
-                          <Col span={8}>
-                            <Statistic
-                              title="Hoa Hồng"
-                              value={commissionData.totalCommission}
-                              suffix="₫"
-                              formatter={(v) =>
-                                `${Number(v).toLocaleString('vi-VN')}`
-                              }
-                              valueStyle={{
-                                color: '#ff69b4',
-                                fontWeight: 'bold',
-                              }}
-                            />
-                          </Col>
-                        </Row>
-                        {commissionData.transactions.length > 0 ? (
-                          <Table
-                            columns={[
-                              {
-                                title: 'Ngày',
-                                dataIndex: 'date',
-                                key: 'date',
-                                width: 120,
-                                render: formatDate,
-                              },
-                              {
-                                title: 'Số Tiền',
-                                dataIndex: 'amount',
-                                key: 'amount',
-                                width: 130,
-                                render: (v) =>
-                                  `${Number(v || 0).toLocaleString('vi-VN')} ₫`,
-                              },
-                              {
-                                title: 'Hoa Hồng',
-                                key: 'commission',
-                                width: 130,
-                                render: (_, record) => {
-                                  const comm =
-                                    (Number(record.amount) || 0) *
-                                    (Number(commissionData.commissionRate) || 0) / 100;
-                                  return `${Number(comm).toLocaleString('vi-VN')} ₫`;
-                                },
-                              },
-                            ]}
-                            dataSource={commissionData.transactions.map(
-                              (t, i) => ({
-                                ...t,
-                                key: t.id || i,
-                              })
-                            )}
-                            pagination={false}
-                            size="small"
-                          />
-                        ) : (
-                          <Empty description="Không có doanh số" />
-                        )}
-                      </>
-                    ) : (
-                      <Spin />
-                    )}
-                  </div>
-                ),
               },
             ]}
           />
