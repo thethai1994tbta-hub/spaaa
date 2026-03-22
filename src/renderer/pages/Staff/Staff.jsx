@@ -131,7 +131,7 @@ export default function Staff() {
         { field: 'staffId', operator: '==', value: staffId },
       ]);
 
-      let records = result.data || result || [];
+      let records = (result.data || result || []).filter(r => !r.deleted);
       // Sort by date descending
       records.sort((a, b) => {
         const dateA = toDate(a.date)?.getTime() || 0;
