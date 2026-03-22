@@ -61,6 +61,7 @@ const COLLECTIONS = {
   TRANSACTIONS: 'transactions',
   INVENTORY: 'inventory',
   STOCK_MOVEMENTS: 'stockMovements',
+  ATTENDANCE: 'attendance',
   APP_SETTINGS: 'appSettings',
 };
 

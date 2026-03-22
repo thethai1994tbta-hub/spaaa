@@ -222,7 +222,7 @@ function setupFirebaseIPC() {
 
   // ==================== ATTENDANCE ====================
   ipcMain.handle('db:attendance:add', async (event, attendance) => {
-    return addDocument('ATTENDANCE', {
+    return addDocument(COLLECTIONS.ATTENDANCE, {
       staffId: attendance.staffId,
       staffName: attendance.staffName,
       date: new Date(attendance.date),
