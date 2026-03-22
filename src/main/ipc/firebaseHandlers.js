@@ -152,7 +152,15 @@ function setupFirebaseIPC() {
   });
 
   ipcMain.handle('db:inventory:update', async (event, id, item) => {
-    return updateDocument(COLLECTIONS.INVENTORY, id, item);
+    const updateData = {
+      name: item.name,
+      category: item.category || null,
+      quantity: item.quantity || 0,
+      unitPrice: item.unitPrice || item.unit_price || 0,
+      reorderLevel: item.reorderLevel || item.reorder_level || 10,
+      supplier: item.supplier || null,
+    };
+    return updateDocument(COLLECTIONS.INVENTORY, id, updateData);
   });
 
   // ==================== DASHBOARD ====================

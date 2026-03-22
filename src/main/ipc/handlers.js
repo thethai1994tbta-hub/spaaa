@@ -131,6 +131,18 @@ function setupIPC() {
     }
   });
 
+  ipcMain.handle('db:inventory:update', async (event, id, item) => {
+    try {
+      const result = await runQuery(
+        'UPDATE inventory SET name=?, category=?, quantity=?, unit_price=?, reorder_level=?, supplier=? WHERE id=?',
+        [item.name, item.category || null, item.quantity || 0, item.unitPrice || item.unit_price || 0, item.reorderLevel || item.reorder_level || 10, item.supplier || null, id]
+      );
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('db:backup', () => {
     try {
       const appData = path.join(os.homedir(), 'AppData', 'Local', 'SpaApp');
