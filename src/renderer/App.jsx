@@ -57,7 +57,7 @@ const App = () => {
               }}
             >
               <h2 style={{ color: '#ff69b4', margin: 0, fontSize: '24px', fontWeight: '700' }}>SPA VIP</h2>
-              <p style={{ color: isDarkMode ? '#888' : '#999', margin: '4px 0 0 0', fontSize: '12px' }}>Quản Lý Chuyên Nghiệp</p>
+              <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>Quản Lý Chuyên Nghiệp</p>
             </div>
             <Menu
               theme={isDarkMode ? 'dark' : 'light'}
@@ -68,7 +68,7 @@ const App = () => {
                 border: 'none',
                 background: isDarkMode ? '#1f1f1f' : '#fff',
               }}
-              itemLabelColor={isDarkMode ? '#ccc' : '#666'}
+              itemLabelColor={isDarkMode ? '#ccc' : '#1f1f1f'}
               selectedItemBg={isDarkMode ? 'rgba(255,105,180,0.15)' : 'rgba(255,105,180,0.1)'}
               selectedItemColor={'#ff69b4'}
               items={[
@@ -136,7 +136,7 @@ const App = () => {
                   size="large"
                   onClick={() => setCollapsed(!collapsed)}
                   style={{
-                    color: isDarkMode ? '#ccc' : '#666',
+                    color: isDarkMode ? '#ccc' : '#333',
                     fontSize: '18px',
                   }}
                   icon={collapsed ? '☰' : '✕'}
@@ -154,7 +154,7 @@ const App = () => {
               <Button
                 type="text"
                 icon={<LogoutOutlined />}
-                style={{ color: isDarkMode ? '#ccc' : '#666' }}
+                style={{ color: isDarkMode ? '#ccc' : '#333' }}
               />
             </Header>
             <Content
