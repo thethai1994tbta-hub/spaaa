@@ -1,0 +1,414 @@
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Space, Popconfirm, Empty, InputNumber, Tag, Descriptions } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, AlertOutlined } from '@ant-design/icons';
+import { useAPI } from '../../hooks/useAPI';
+
+export default function Inventory() {
+  const { invoke } = useAPI();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  const loadItems = async () => {
+    setLoading(true);
+    try {
+      const result = await invoke('db:inventory:getAll');
+      const data = result.data || result || [];
+      setItems(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('[Inventory] Error:', error);
+      message.error('Lỗi tải kho: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddItem = async (values) => {
+    try {
+      await invoke('db:inventory:add', {
+        name: values.name,
+        category: values.category || '',
+        quantity: values.quantity || 0,
+        unitPrice: Number(values.unitPrice) || 0,
+        reorderLevel: values.reorderLevel || 0,
+        supplier: values.supplier || '',
+      });
+      message.success('Thêm sản phẩm thành công');
+      form.resetFields();
+      setIsModalOpen(false);
+      loadItems();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  const handleUpdateItem = async (values) => {
+    try {
+      await invoke('db:inventory:update', selectedItem.id, {
+        name: values.name,
+        category: values.category || '',
+        quantity: values.quantity || 0,
+        unitPrice: Number(values.unitPrice) || 0,
+        reorderLevel: values.reorderLevel || 0,
+        supplier: values.supplier || '',
+      });
+      message.success('Cập nhật thành công');
+      setDetailDrawerOpen(false);
+      setIsEditMode(false);
+      form.resetFields();
+      loadItems();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  const handleDeleteItem = async (id) => {
+    try {
+      await invoke('db:inventory:delete', id);
+      message.success('Xóa thành công');
+      setDetailDrawerOpen(false);
+      loadItems();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (items.length === 0) {
+      message.warning('Không có dữ liệu');
+      return;
+    }
+
+    const headers = ['Tên', 'Danh Mục', 'Số Lượng', 'Giá/Cái', 'Mức Tái Đặt', 'Nhà Cung Cấp', 'Giá Trị'];
+    const rows = items.map(item => [
+      item.name || '',
+      item.category || '',
+      item.quantity || 0,
+      item.unitPrice || 0,
+      item.reorderLevel || 0,
+      item.supplier || '',
+      ((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString('vi-VN'),
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = `kho-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success('Xuất dữ liệu thành công');
+  };
+
+  const isLowStock = (item) => item.quantity < item.reorderLevel;
+
+  const filteredItems = items.filter(item =>
+    (item.name?.toLowerCase().includes(searchText.toLowerCase())) ||
+    (item.category?.toLowerCase().includes(searchText.toLowerCase())) ||
+    (item.supplier?.toLowerCase().includes(searchText.toLowerCase()))
+  );
+
+  const columns = [
+    {
+      title: 'Tên Sản Phẩm',
+      dataIndex: 'name',
+      key: 'name',
+      width: 150,
+      render: (text, record) => (
+        <div>
+          {text}
+          {isLowStock(record) && <Tag color="red" style={{ marginLeft: 8 }}>Tồn Thấp</Tag>}
+        </div>
+      ),
+    },
+    {
+      title: 'Danh Mục',
+      dataIndex: 'category',
+      key: 'category',
+      width: 120,
+    },
+    {
+      title: 'Số Lượng',
+      dataIndex: 'quantity',
+      key: 'quantity',
+      width: 100,
+    },
+    {
+      title: 'Giá/Cái',
+      dataIndex: 'unitPrice',
+      key: 'unitPrice',
+      width: 110,
+      render: (price) => price ? `${Number(price).toLocaleString('vi-VN')} ₫` : '0 ₫',
+    },
+    {
+      title: 'Mức Tái Đặt',
+      dataIndex: 'reorderLevel',
+      key: 'reorderLevel',
+      width: 100,
+    },
+    {
+      title: 'Nhà Cung Cấp',
+      dataIndex: 'supplier',
+      key: 'supplier',
+      width: 120,
+    },
+    {
+      title: 'Giá Trị',
+      key: 'value',
+      width: 120,
+      render: (_, record) => {
+        const value = (record.quantity || 0) * (record.unitPrice || 0);
+        return `${value.toLocaleString('vi-VN')} ₫`;
+      },
+    },
+    {
+      title: 'Thao Tác',
+      key: 'action',
+      width: 140,
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            onClick={() => {
+              setSelectedItem(record);
+              setIsEditMode(false);
+              setDetailDrawerOpen(true);
+              form.setFieldsValue(record);
+            }}
+            style={{ color: '#ff69b4' }}
+          >
+            Chi Tiết
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setSelectedItem(record);
+              setIsEditMode(true);
+              setDetailDrawerOpen(true);
+              form.setFieldsValue(record);
+            }}
+          >
+            Sửa
+          </Button>
+          <Popconfirm
+            title="Xóa?"
+            description="Xác nhận xóa sản phẩm này?"
+            onConfirm={() => handleDeleteItem(record.id)}
+            okText="Có"
+            cancelText="Không"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              Xóa
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Card
+      title="Quản Lý Kho"
+      extra={
+        <Space>
+          <Input
+            placeholder="Tìm kiếm..."
+            prefix={<SearchOutlined />}
+            style={{ width: 250 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <Button icon={<DownloadOutlined />} onClick={handleExportCSV}>
+            Xuất CSV
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setIsEditMode(false);
+              form.resetFields();
+              setIsModalOpen(true);
+            }}
+            style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+          >
+            Thêm
+          </Button>
+        </Space>
+      }
+    >
+      <Spin spinning={loading}>
+        {filteredItems.length === 0 ? (
+          <Empty description="Không có sản phẩm" style={{ marginTop: 50 }} />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredItems.map((item, i) => ({ ...item, key: item.id || i }))}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 1200 }}
+          />
+        )}
+      </Spin>
+
+      <Modal
+        title={isEditMode ? 'Sửa Sản Phẩm' : 'Thêm Sản Phẩm'}
+        open={isModalOpen}
+        onCancel={() => {
+          setIsModalOpen(false);
+          form.resetFields();
+        }}
+        onOk={() => form.submit()}
+        okText={isEditMode ? 'Cập Nhật' : 'Thêm'}
+        cancelText="Hủy"
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={isEditMode ? handleUpdateItem : handleAddItem}
+        >
+          <Form.Item
+            label="Tên"
+            name="name"
+            rules={[{ required: true, message: 'Nhập tên sản phẩm' }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item label="Danh Mục" name="category">
+            <Input />
+          </Form.Item>
+          <Form.Item
+            label="Số Lượng"
+            name="quantity"
+            rules={[{ required: true, message: 'Nhập số lượng' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            label="Giá/Cái (₫)"
+            name="unitPrice"
+            rules={[{ required: true, message: 'Nhập giá' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            label="Mức Tái Đặt"
+            name="reorderLevel"
+            rules={[{ required: true, message: 'Nhập mức tái đặt' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="Nhà Cung Cấp" name="supplier">
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Drawer
+        title={selectedItem?.name}
+        placement="right"
+        width={500}
+        onClose={() => {
+          setDetailDrawerOpen(false);
+          setIsEditMode(false);
+          form.resetFields();
+        }}
+        open={detailDrawerOpen}
+        extra={
+          <Space>
+            {!isEditMode && (
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => setIsEditMode(true)}
+                style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+              >
+                Sửa
+              </Button>
+            )}
+            {isEditMode && (
+              <>
+                <Button onClick={() => setIsEditMode(false)}>Hủy</Button>
+                <Button
+                  type="primary"
+                  onClick={() => form.submit()}
+                  style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Lưu
+                </Button>
+              </>
+            )}
+          </Space>
+        }
+      >
+        {isEditMode ? (
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleUpdateItem}
+          >
+            <Form.Item
+              label="Tên"
+              name="name"
+              rules={[{ required: true, message: 'Nhập tên' }]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item label="Danh Mục" name="category">
+              <Input />
+            </Form.Item>
+            <Form.Item label="Số Lượng" name="quantity">
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="Giá/Cái (₫)" name="unitPrice">
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="Mức Tái Đặt" name="reorderLevel">
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item label="Nhà Cung Cấp" name="supplier">
+              <Input />
+            </Form.Item>
+          </Form>
+        ) : (
+          selectedItem && (
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="Tên">{selectedItem.name}</Descriptions.Item>
+              <Descriptions.Item label="Danh Mục">{selectedItem.category || '-'}</Descriptions.Item>
+              <Descriptions.Item label="Số Lượng">{selectedItem.quantity || 0}</Descriptions.Item>
+              <Descriptions.Item label="Mức Tái Đặt">{selectedItem.reorderLevel || 0}</Descriptions.Item>
+              <Descriptions.Item label="Giá/Cái">
+                {selectedItem.unitPrice ? `${Number(selectedItem.unitPrice).toLocaleString('vi-VN')} ₫` : '0 ₫'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Nhà Cung Cấp">{selectedItem.supplier || '-'}</Descriptions.Item>
+              <Descriptions.Item label="Giá Trị Tồn Kho">
+                <strong>{((selectedItem.quantity || 0) * (selectedItem.unitPrice || 0)).toLocaleString('vi-VN')} ₫</strong>
+              </Descriptions.Item>
+              {isLowStock(selectedItem) && (
+                <Descriptions.Item label="Trạng Thái">
+                  <Tag color="red">Tồn Thấp</Tag>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          )
+        )}
+      </Drawer>
+    </Card>
+  );
+}
