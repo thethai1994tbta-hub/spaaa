@@ -333,7 +333,15 @@ function setupFirebaseIPC() {
   });
 
   ipcMain.handle('db:settings:set', async (event, key, value) => {
-    return addDocument(COLLECTIONS.APP_SETTINGS, { key, value });
+    try {
+      await require('../database/firebaseDb').getDatabase()
+        .collection(COLLECTIONS.APP_SETTINGS)
+        .doc(key)
+        .set(value, { merge: true });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   });
 
   console.log('[IPC] Firebase handlers registered');

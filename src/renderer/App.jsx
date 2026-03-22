@@ -9,6 +9,7 @@ import {
   ShoppingCartOutlined,
   BarChartOutlined,
   LogoutOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Customers from './pages/Customers/Customers';
@@ -16,6 +17,7 @@ import Staff from './pages/Staff/Staff';
 import Payment from './pages/Payment/Payment';
 import Inventory from './pages/Inventory/Inventory';
 import Reports from './pages/Reports/Reports';
+import Settings from './pages/Settings/Settings';
 import { ThemeContext } from './context/ThemeContext';
 import './styles/App.css';
 
@@ -109,6 +111,13 @@ const App = () => {
                   label: 'Nhân Viên',
                   onClick: () => setCurrentPage('staff'),
                 },
+                { type: 'divider' },
+                {
+                  key: 'settings',
+                  icon: <SettingOutlined />,
+                  label: 'Cài Đặt',
+                  onClick: () => setCurrentPage('settings'),
+                },
               ]}
             />
           </Sider>
@@ -177,6 +186,7 @@ const App = () => {
               {currentPage === 'payment' && <Payment />}
               {currentPage === 'inventory' && <Inventory />}
               {currentPage === 'reports' && <Reports />}
+              {currentPage === 'settings' && <Settings />}
             </Content>
           </Layout>
         </Layout>
