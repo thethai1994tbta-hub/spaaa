@@ -123,9 +123,21 @@ function setupIPC() {
     try {
       const result = await runQuery(
         'INSERT INTO inventory (name, category, quantity, unit_price, reorder_level, supplier) VALUES (?, ?, ?, ?, ?, ?)',
-        [item.name, item.category || null, item.quantity || 0, item.unit_price || 0, item.reorder_level || 10, item.supplier || null]
+        [item.name, item.category || null, item.quantity || 0, item.unitPrice || item.unit_price || 0, item.reorderLevel || item.reorder_level || 10, item.supplier || null]
       );
       return { success: true, id: result.id };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:inventory:update', async (event, id, item) => {
+    try {
+      const result = await runQuery(
+        'UPDATE inventory SET name=?, category=?, quantity=?, unit_price=?, reorder_level=?, supplier=? WHERE id=?',
+        [item.name, item.category || null, item.quantity || 0, item.unitPrice || item.unit_price || 0, item.reorderLevel || item.reorder_level || 10, item.supplier || null, id]
+      );
+      return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -171,6 +183,71 @@ function setupIPC() {
           totalCustomers: totalCustomers?.total || 0,
         },
       };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:attendance:add', async (event, attendance) => {
+    try {
+      const result = await runQuery(
+        'INSERT INTO attendance (staff_id, staff_name, date, check_in_time, check_out_time, status, notes, hours_worked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [attendance.staffId, attendance.staffName, new Date(attendance.date).toISOString(), new Date(attendance.checkInTime).toISOString(), attendance.checkOutTime ? new Date(attendance.checkOutTime).toISOString() : null, attendance.status || 'present', attendance.notes || null, attendance.hoursWorked || 0]
+      );
+      return { success: true, id: result.id };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:stock-movements:add', async (event, movement) => {
+    try {
+      const result = await runQuery(
+        'INSERT INTO stock_movements (item_id, item_name, date, quantity, notes, type, user) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [movement.itemId, movement.itemName, new Date(movement.date).toISOString(), movement.quantity, movement.notes || null, movement.type || 'import', movement.user || 'System']
+      );
+      return { success: true, id: result.id };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:query', async (event, table, conditions) => {
+    try {
+      let query = `SELECT * FROM ${table}`;
+      const params = [];
+
+      if (conditions && conditions.length > 0) {
+        const where = conditions.map(cond => {
+          if (cond.operator === '==') {
+            params.push(cond.value);
+            return `${cond.field} = ?`;
+          } else if (cond.operator === '>=') {
+            params.push(cond.value);
+            return `${cond.field} >= ?`;
+          } else if (cond.operator === '<=') {
+            params.push(cond.value);
+            return `${cond.field} <= ?`;
+          }
+          return '';
+        }).filter(w => w);
+
+        if (where.length > 0) {
+          query += ' WHERE ' + where.join(' AND ');
+        }
+      }
+
+      const data = await (params.length > 0
+        ? new Promise((resolve, reject) => {
+            getDatabase().all(query, params, (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows || []);
+            });
+          })
+        : allQuery(query)
+      );
+
+      return { success: true, data };
     } catch (error) {
       return { success: false, error: error.message };
     }
