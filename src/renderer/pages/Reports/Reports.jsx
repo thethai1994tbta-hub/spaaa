@@ -176,12 +176,13 @@ export default function Reports() {
       });
     });
 
-    // Commission from commission transactions
+    // Commission from commission transactions (use commissionAmount, NOT amount)
     const commissions = filteredTx.filter(t => (t.transactionType || t.transaction_type) === 'commission');
     commissions.forEach(t => {
       const sname = t.staffName || t.staff_name || staffList.find(s => s.id === (t.staffId || t.staff_id))?.name || 'Chưa gán';
       if (!staffMap[sname]) staffMap[sname] = { services: 0, revenue: 0 };
-      staffMap[sname].commission = (staffMap[sname].commission || 0) + (Number(t.amount) || 0);
+      const commAmt = Number(t.commissionAmount ?? t.commission_amount) || 0;
+      staffMap[sname].commission = (staffMap[sname].commission || 0) + commAmt;
     });
 
     return Object.keys(staffMap).map(name => ({
