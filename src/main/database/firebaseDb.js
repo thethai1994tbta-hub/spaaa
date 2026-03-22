@@ -60,6 +60,7 @@ const COLLECTIONS = {
   BOOKINGS: 'bookings',
   TRANSACTIONS: 'transactions',
   INVENTORY: 'inventory',
+  STOCK_MOVEMENTS: 'stockMovements',
   APP_SETTINGS: 'appSettings',
 };
 

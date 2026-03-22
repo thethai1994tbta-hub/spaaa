@@ -222,7 +222,7 @@ function setupFirebaseIPC() {
 
   // ==================== STOCK MOVEMENTS ====================
   ipcMain.handle('db:stock-movements:add', async (event, movement) => {
-    return addDocument('STOCK_MOVEMENTS', {
+    return addDocument(COLLECTIONS.STOCK_MOVEMENTS, {
       itemId: movement.itemId,
       itemName: movement.itemName,
       date: new Date(movement.date),
