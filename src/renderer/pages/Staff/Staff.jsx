@@ -41,9 +41,11 @@ export default function Staff() {
 
   const loadAttendanceRecords = async (staffId) => {
     try {
+      console.log('[Staff] Loading attendance for staffId:', staffId);
       const result = await invoke('db:query', 'attendance', [
         { field: 'staffId', operator: '==', value: staffId }
       ]);
+      console.log('[Staff] Attendance result:', result);
       setAttendanceRecords((result.data || []).sort((a, b) => new Date(b.date) - new Date(a.date)));
     } catch (error) {
       console.error('[Staff] Error loading attendance:', error);
@@ -149,10 +151,12 @@ export default function Staff() {
         hoursWorked: values.hoursWorked || 0,
       };
 
+      console.log('[Staff] Saving attendance:', checkInRecord);
       try {
-        await invoke('db:attendance:add', checkInRecord);
+        const result = await invoke('db:attendance:add', checkInRecord);
+        console.log('[Staff] Attendance save result:', result);
       } catch (e) {
-        console.log('Attendance log:', e.message);
+        console.error('[Staff] Attendance save error:', e.message);
       }
 
       message.success('Ghi nhận chấm công thành công');
