@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty, Select, DatePicker } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty, Select, DatePicker, Tag } from 'antd';
+import { CalendarOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, CalendarOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 import { useAuth } from '../../context/AuthContext';
 import dayjs from 'dayjs';
@@ -291,6 +292,45 @@ export default function Customers() {
       key: 'points',
       width: 80,
       render: (text) => text || 0,
+    },
+    {
+      title: 'Trạng Thái',
+      key: 'status',
+      width: 140,
+      render: (_, record) => {
+        const todayStr = dayjs().format('YYYY-MM-DD');
+        const tomorrowStr = dayjs().add(1, 'day').format('YYYY-MM-DD');
+        const customerBookings = bookings.filter(b => {
+          const custId = b.customer_id || b.customerId;
+          if (custId !== record.id) return false;
+          if (b.status === 'cancelled' || b.status === 'completed') return false;
+          return true;
+        });
+        const todayBooking = customerBookings.find(b => {
+          const d = b.booking_date || b.bookingDate;
+          return d && dayjs(d).format('YYYY-MM-DD') === todayStr;
+        });
+        const tomorrowBooking = customerBookings.find(b => {
+          const d = b.booking_date || b.bookingDate;
+          return d && dayjs(d).format('YYYY-MM-DD') === tomorrowStr;
+        });
+        const upcomingCount = customerBookings.filter(b => {
+          const d = b.booking_date || b.bookingDate;
+          return d && dayjs(d).isAfter(dayjs());
+        }).length;
+
+        if (todayBooking) {
+          const d = dayjs(todayBooking.booking_date || todayBooking.bookingDate);
+          return <Tag icon={<CalendarOutlined />} color="green">Hôm nay {d.format('HH:mm')}</Tag>;
+        }
+        if (tomorrowBooking) {
+          return <Tag icon={<CalendarOutlined />} color="blue">Ngày mai</Tag>;
+        }
+        if (upcomingCount > 0) {
+          return <Tag color="default">{upcomingCount} lịch hẹn</Tag>;
+        }
+        return <span style={{ color: '#bfbfbf' }}>—</span>;
+      },
     },
     {
       title: 'Thao Tác',
