@@ -149,6 +149,8 @@ function setupFirebaseIPC() {
       notes: transaction.notes || '',
       status: transaction.status || 'completed',
       date: new Date(transaction.date || Date.now()),
+      expenseCategory: transaction.expense_category || transaction.expenseCategory || null,
+      expenseCategoryLabel: transaction.expense_category_label || transaction.expenseCategoryLabel || null,
     });
   });
 

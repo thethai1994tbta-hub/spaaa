@@ -374,13 +374,13 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   const filteredExpenses = expenseFilter === 'all'
     ? expenseTransactions
-    : expenseTransactions.filter(t => (t.expenseCategory || t.expense_category) === expenseFilter);
+    : expenseTransactions.filter(t => t.expenseCategory === expenseFilter);
 
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
   const expenseByCategory = {};
   expenseTransactions.forEach(t => {
-    const cat = t.expenseCategory || t.expense_category || 'other';
+    const cat = t.expenseCategory || 'other';
     expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Math.abs(Number(t.amount) || 0);
   });
 
@@ -912,7 +912,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       {
                         title: 'Danh Mục', key: 'category', width: 180,
                         render: (_, r) => {
-                          const cat = r.expenseCategory || r.expense_category || 'other';
+                          const cat = r.expenseCategory || 'other';
                           const category = EXPENSE_CATEGORIES.find(c => c.value === cat);
                           return (
                             <Tag color="red">
@@ -921,7 +921,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                           );
                         },
                         filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
-                        onFilter: (value, record) => (record.expenseCategory || record.expense_category) === value,
+                        onFilter: (value, record) => record.expenseCategory === value,
                       },
                       {
                         title: 'Số Tiền', key: 'amount', width: 140,
