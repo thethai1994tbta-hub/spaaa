@@ -93,6 +93,8 @@ export default function Staff() {
   // Data
   const [staff, setStaff] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [commissionData, setCommissionData] = useState(null);
+  const [commissionMonth, setCommissionMonth] = useState(dayjs());
 
   // UI States
   const [loading, setLoading] = useState(false);
@@ -349,6 +351,37 @@ export default function Staff() {
       commissionRate: s.commissionRate ?? s.commission_rate ?? 0,
     });
     loadAttendanceRecords(s.id);
+    loadCommissionData(s.id, s.commissionRate ?? s.commission_rate ?? 0);
+  };
+
+  const loadCommissionData = async (staffId, commissionRate, month = null) => {
+    setCommissionData(null);
+    try {
+      const result = await invoke('db:query', 'transactions', [
+        { field: 'staffId', operator: '==', value: staffId },
+      ]);
+      const targetMonth = month || commissionMonth;
+      const monthStr = targetMonth.format('YYYY-MM');
+      let txList = result.data || result || [];
+      const monthTx = txList.filter((t) => {
+        if (t.deleted) return false;
+        const type = t.transactionType || t.transaction_type;
+        if (type === 'commission') return false;
+        const dateField = t.date || t.createdAt;
+        if (!dateField) return false;
+        const d = toDate(dateField);
+        return d && d.toISOString().startsWith(monthStr);
+      });
+      const totalRevenue = monthTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      setCommissionData({
+        totalRevenue,
+        commissionRate,
+        totalCommission: totalRevenue * (Number(commissionRate) / 100),
+        transactions: monthTx,
+      });
+    } catch {
+      setCommissionData({ totalRevenue: 0, commissionRate, totalCommission: 0, transactions: [] });
+    }
   };
 
   // ============ COMPUTED ============
@@ -943,6 +976,108 @@ export default function Staff() {
                     </div>
                   );
                 })(),
+              },
+              {
+                key: 'commission',
+                label: 'Hoa Hồng',
+                children: (
+                  <div>
+                    <div style={{ marginBottom: 16 }}>
+                      <DatePicker
+                        picker="month"
+                        value={commissionMonth}
+                        onChange={(date) => {
+                          setCommissionMonth(date);
+                          loadCommissionData(
+                            selectedStaff.id,
+                            selectedStaff.commissionRate ?? selectedStaff.commission_rate ?? 0,
+                            date
+                          );
+                        }}
+                        format="MM/YYYY"
+                      />
+                    </div>
+                    {commissionData ? (
+                      <>
+                        <Row gutter={16} style={{ marginBottom: 20 }}>
+                          <Col span={8}>
+                            <Statistic title="Doanh Số" value={commissionData.totalRevenue} suffix="₫"
+                              formatter={(v) => Number(v).toLocaleString('vi-VN')} />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic title="Tỷ Lệ" value={Number(commissionData.commissionRate || 0).toFixed(1)} suffix="%" />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic title="Hoa Hồng" value={commissionData.totalCommission} suffix="₫"
+                              formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                              valueStyle={{ color: '#ff69b4', fontWeight: 'bold' }} />
+                          </Col>
+                        </Row>
+                        {commissionData.transactions.length > 0 ? (
+                          <Table
+                            columns={[
+                              {
+                                title: 'Ngày', key: 'date', width: 120,
+                                render: (_, r) => formatDate(r.date || r.createdAt),
+                              },
+                              {
+                                title: 'Khách Hàng', key: 'customer', width: 130,
+                                render: (_, r) => r.customerName || r.customer_name || '-',
+                              },
+                              {
+                                title: 'Số Tiền', dataIndex: 'amount', key: 'amount', width: 130,
+                                render: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫`,
+                              },
+                              {
+                                title: 'Hoa Hồng', key: 'comm', width: 120,
+                                render: (_, r) => {
+                                  const comm = (Number(r.amount) || 0) * (Number(commissionData.commissionRate) || 0) / 100;
+                                  return <span style={{ color: '#ff69b4' }}>{Number(comm).toLocaleString('vi-VN')} ₫</span>;
+                                },
+                              },
+                              {
+                                title: '', key: 'del', width: 50,
+                                render: (_, r) => (
+                                  <Popconfirm
+                                    title="Xóa giao dịch này?"
+                                    description="Hành động không thể hoàn tác."
+                                    onConfirm={guardAction(async () => {
+                                      try {
+                                        await invoke('db:transactions:update', r.id, {
+                                          deleted: true,
+                                          transactionType: 'deleted',
+                                          transaction_type: 'deleted',
+                                        });
+                                        message.success('Đã xóa');
+                                        loadCommissionData(
+                                          selectedStaff.id,
+                                          selectedStaff.commissionRate ?? selectedStaff.commission_rate ?? 0,
+                                          commissionMonth
+                                        );
+                                      } catch (error) {
+                                        message.error('Lỗi: ' + error.message);
+                                      }
+                                    })}
+                                    okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}
+                                  >
+                                    <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+                                  </Popconfirm>
+                                ),
+                              },
+                            ]}
+                            dataSource={commissionData.transactions.map((t, i) => ({ ...t, key: t.id || i }))}
+                            pagination={false}
+                            size="small"
+                          />
+                        ) : (
+                          <Empty description="Không có doanh số tháng này" />
+                        )}
+                      </>
+                    ) : (
+                      <Spin />
+                    )}
+                  </div>
+                ),
               },
             ]}
           />

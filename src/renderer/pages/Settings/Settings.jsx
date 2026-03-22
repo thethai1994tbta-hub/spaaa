@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   SettingOutlined, BankOutlined, ShopOutlined, LockOutlined,
-  SaveOutlined, KeyOutlined,
+  SaveOutlined, KeyOutlined, DeleteOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 
@@ -22,6 +22,8 @@ export default function Settings({ onSpaNameChange }) {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [settings, setSettings] = useState({});
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirmInput, setResetConfirmInput] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -158,6 +160,51 @@ export default function Settings({ onSpaNameChange }) {
       message.error('Lỗi: ' + error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ============ RESET DATA ============
+  const handleResetCollection = async (collection, label) => {
+    if (isLocked) { setShowPasswordModal(true); return; }
+    setResetting(true);
+    try {
+      const result = await invoke(`db:${collection}:getAll`);
+      const items = result.data || result || [];
+      let deleted = 0;
+      for (const item of items) {
+        try {
+          await invoke(`db:${collection}:delete`, item.id);
+          deleted++;
+        } catch {}
+      }
+      message.success(`Đã xóa ${deleted} ${label}`);
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleResetTransactions = async () => {
+    if (isLocked) { setShowPasswordModal(true); return; }
+    setResetting(true);
+    try {
+      const result = await invoke('db:transactions:getAll');
+      const items = result.data || result || [];
+      let deleted = 0;
+      for (const item of items) {
+        try {
+          await invoke('db:transactions:update', item.id, {
+            deleted: true, transactionType: 'deleted', transaction_type: 'deleted',
+          });
+          deleted++;
+        } catch {}
+      }
+      message.success(`Đã xóa ${deleted} giao dịch`);
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -399,6 +446,62 @@ export default function Settings({ onSpaNameChange }) {
                   Lưu Cài Đặt
                 </Button>
               </Form>
+            ),
+          },
+          {
+            key: 'data',
+            label: <span><DeleteOutlined /> Quản Lý Dữ Liệu</span>,
+            children: (
+              <div>
+                {isLocked && (
+                  <div style={{ marginBottom: 16, padding: 12, background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8 }}>
+                    <WarningOutlined style={{ color: '#fa8c16', marginRight: 8 }} />
+                    <span style={{ color: '#fa8c16' }}>Cần mở khóa để thực hiện xóa dữ liệu</span>
+                    <Button size="small" style={{ marginLeft: 12 }} onClick={() => setShowPasswordModal(true)}>Mở Khóa</Button>
+                  </div>
+                )}
+                <div style={{ marginBottom: 16, padding: 16, background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8 }}>
+                  <div style={{ fontWeight: 700, color: '#f5222d', marginBottom: 8 }}>
+                    <WarningOutlined /> Xóa Toàn Bộ Dữ Liệu Test
+                  </div>
+                  <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+                    Dùng khi bàn giao app cho khách — xóa tất cả dữ liệu thử nghiệm để bắt đầu từ đầu. Hành động không thể hoàn tác!
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                    {[
+                      { collection: 'transactions', label: 'giao dịch', color: '#f5222d', title: 'Xóa Giao Dịch', isSpecial: true },
+                      { collection: 'bookings', label: 'đặt lịch', color: '#fa8c16', title: 'Xóa Đặt Lịch' },
+                      { collection: 'customers', label: 'khách hàng', color: '#1890ff', title: 'Xóa Khách Hàng' },
+                      { collection: 'attendance', label: 'chấm công', color: '#722ed1', title: 'Xóa Chấm Công' },
+                    ].map(({ collection, label, color, title, isSpecial }) => (
+                      <div key={collection} style={{ border: `1px solid ${color}30`, borderRadius: 8, padding: 12, minWidth: 160, background: '#fafafa' }}>
+                        <div style={{ fontWeight: 600, color, marginBottom: 8 }}>{title}</div>
+                        <Button
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          loading={resetting}
+                          disabled={isLocked}
+                          onClick={() => isSpecial ? handleResetTransactions() : handleResetCollection(collection, label)}
+                        >
+                          Xóa tất cả {label}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: 16, background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
+                  <div style={{ fontWeight: 600, color: '#52c41a', marginBottom: 8 }}>Lưu Ý Khi Bàn Giao App</div>
+                  <ul style={{ margin: 0, paddingLeft: 20, color: '#555', fontSize: 13 }}>
+                    <li>Xóa giao dịch → báo cáo về 0</li>
+                    <li>Xóa đặt lịch → lịch hẹn sạch</li>
+                    <li>Xóa khách hàng → danh sách trống</li>
+                    <li>Xóa chấm công → lịch sử về trắng</li>
+                    <li style={{ color: '#fa8c16' }}>Nhân viên, dịch vụ, sản phẩm <strong>không bị xóa</strong></li>
+                    <li style={{ color: '#fa8c16' }}>Cài đặt (tên spa, ngân hàng, mật khẩu) <strong>giữ nguyên</strong></li>
+                  </ul>
+                </div>
+              </div>
             ),
           },
         ]}
