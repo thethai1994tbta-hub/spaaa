@@ -6,7 +6,7 @@ import {
 import {
   DownloadOutlined, DollarOutlined, BarChartOutlined,
   TeamOutlined, ShoppingCartOutlined, CalendarOutlined,
-  RiseOutlined, FallOutlined,
+  RiseOutlined, FallOutlined, WalletOutlined,
 } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -86,9 +86,17 @@ export default function Reports() {
     });
   }, [bookings, dateRange]);
 
+  // Helper: only income transactions (exclude commission & expense)
+  const incomeTx = useMemo(() => {
+    return filteredTx.filter(t => {
+      const type = t.transactionType || t.transaction_type;
+      return type !== 'commission' && type !== 'expense' && type !== 'expense_deleted';
+    });
+  }, [filteredTx]);
+
   // ========== REVENUE STATS ==========
   const revenueStats = useMemo(() => {
-    const serviceTx = filteredTx.filter(t => (t.transactionType || t.transaction_type) !== 'commission');
+    const serviceTx = incomeTx;
     const totalRevenue = serviceTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     const totalTx = serviceTx.length;
 
@@ -128,14 +136,13 @@ export default function Reports() {
     });
 
     return { totalRevenue, totalTx, byMethod, chartData, byType };
-  }, [filteredTx, dateRange]);
+  }, [incomeTx, dateRange]);
 
   // ========== SERVICE STATS ==========
   const serviceStats = useMemo(() => {
     const svcCount = {};
     const svcRevenue = {};
-    filteredTx.forEach(t => {
-      if ((t.transactionType || t.transaction_type) === 'commission') return;
+    incomeTx.forEach(t => {
       const items = t.items || [];
       items.forEach(item => {
         if (item.type === 'service') {
@@ -153,13 +160,12 @@ export default function Reports() {
     })).sort((a, b) => b.count - a.count);
 
     return data;
-  }, [filteredTx]);
+  }, [incomeTx]);
 
   // ========== STAFF PERFORMANCE ==========
   const staffStats = useMemo(() => {
     const staffMap = {};
-    filteredTx.forEach(t => {
-      if ((t.transactionType || t.transaction_type) === 'commission') return;
+    incomeTx.forEach(t => {
       const items = t.items || [];
       items.forEach(item => {
         const sid = item.staffId || item.staff_id;
@@ -184,7 +190,7 @@ export default function Reports() {
       revenue: staffMap[name].revenue,
       commission: staffMap[name].commission || 0,
     })).sort((a, b) => b.revenue - a.revenue);
-  }, [filteredTx, staffList]);
+  }, [incomeTx, filteredTx, staffList]);
 
   // ========== BOOKING STATS ==========
   const bookingStats = useMemo(() => {
@@ -197,15 +203,76 @@ export default function Reports() {
     return { total, completed, cancelled, pending, confirmed };
   }, [filteredBookings]);
 
+  // ========== EXPENSE STATS ==========
+  const EXPENSE_CATEGORIES = [
+    { label: 'Tiền Điện', value: 'electricity', icon: '⚡' },
+    { label: 'Tiền Nước', value: 'water', icon: '💧' },
+    { label: 'Tiền Thuê Mặt Bằng', value: 'rent', icon: '🏠' },
+    { label: 'Internet / Wifi', value: 'internet', icon: '📡' },
+    { label: 'Lương Nhân Viên', value: 'salary', icon: '👤' },
+    { label: 'Vật Tư / Nguyên Liệu', value: 'supplies', icon: '📦' },
+    { label: 'Bảo Trì / Sửa Chữa', value: 'maintenance', icon: '🔧' },
+    { label: 'Quảng Cáo / Marketing', value: 'marketing', icon: '📢' },
+    { label: 'Thuế / Phí', value: 'tax', icon: '📋' },
+    { label: 'Khác', value: 'other', icon: '📌' },
+  ];
+
+  const expenseStats = useMemo(() => {
+    const expenseTx = filteredTx.filter(t => (t.transactionType || t.transaction_type) === 'expense');
+    const totalExpense = expenseTx.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+
+    // By category
+    const byCategory = {};
+    expenseTx.forEach(t => {
+      const cat = t.expenseCategory || 'other';
+      byCategory[cat] = (byCategory[cat] || 0) + Math.abs(Number(t.amount) || 0);
+    });
+
+    const categoryData = Object.entries(byCategory).map(([key, val]) => {
+      const cat = EXPENSE_CATEGORIES.find(c => c.value === key);
+      return { name: cat ? `${cat.icon} ${cat.label}` : key, value: val, key };
+    }).sort((a, b) => b.value - a.value);
+
+    // Daily expense for chart
+    const dailyMap = {};
+    expenseTx.forEach(t => {
+      const d = parseDate(t.date || t.createdAt);
+      if (!d) return;
+      const key = d.format('DD/MM');
+      dailyMap[key] = (dailyMap[key] || 0) + Math.abs(Number(t.amount) || 0);
+    });
+
+    const chartData = [];
+    if (dateRange && dateRange.length === 2) {
+      let current = dateRange[0].startOf('day');
+      const end = dateRange[1].endOf('day');
+      while (current.isBefore(end) || current.isSame(end, 'day')) {
+        const key = current.format('DD/MM');
+        chartData.push({ date: key, expense: dailyMap[key] || 0 });
+        current = current.add(1, 'day');
+      }
+    }
+
+    // By payment method
+    const byMethod = {};
+    expenseTx.forEach(t => {
+      const m = t.paymentMethod || t.payment_method || 'cash';
+      byMethod[m] = (byMethod[m] || 0) + Math.abs(Number(t.amount) || 0);
+    });
+
+    return { totalExpense, count: expenseTx.length, byCategory, categoryData, chartData, byMethod, transactions: expenseTx };
+  }, [filteredTx, dateRange]);
+
+  // ========== PROFIT ==========
+  const profit = revenueStats.totalRevenue - expenseStats.totalExpense;
+
   // ========== EXPORT CSV ==========
   const handleExport = (type) => {
     let headers, rows, filename;
 
     if (type === 'revenue') {
       headers = ['Ngày', 'Khách Hàng', 'Loại', 'Phương Thức', 'Số Tiền', 'Ghi Chú'];
-      rows = filteredTx
-        .filter(t => (t.transactionType || t.transaction_type) !== 'commission')
-        .map(t => {
+      rows = incomeTx.map(t => {
           const d = parseDate(t.date || t.createdAt);
           const cust = customers.find(c => c.id === (t.customerId || t.customer_id));
           const typeMap = { service: 'Dịch vụ', package: 'Gói', product: 'Sản phẩm', mixed: 'Hỗn hợp' };
@@ -230,6 +297,21 @@ export default function Reports() {
       headers = ['Nhân Viên', 'Số DV', 'Doanh Thu', 'Hoa Hồng'];
       rows = staffStats.map(s => [s.name, s.services, s.revenue, s.commission]);
       filename = `nhan-vien-${dayjs().format('YYYYMMDD')}`;
+    } else if (type === 'expenses') {
+      headers = ['Ngày', 'Danh Mục', 'Số Tiền', 'Phương Thức', 'Ghi Chú'];
+      rows = expenseStats.transactions.map(t => {
+        const d = parseDate(t.date || t.createdAt);
+        const cat = EXPENSE_CATEGORIES.find(c => c.value === t.expenseCategory);
+        const methodMap = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ' };
+        return [
+          d ? d.format('DD/MM/YYYY HH:mm') : '',
+          cat?.label || t.expenseCategory || 'Khác',
+          Math.abs(Number(t.amount) || 0),
+          methodMap[t.paymentMethod || t.payment_method] || '',
+          t.notes || '',
+        ];
+      });
+      filename = `chi-phi-${dayjs().format('YYYYMMDD')}`;
     } else {
       return;
     }
@@ -323,14 +405,17 @@ export default function Reports() {
                       </Card>
                     </Col>
                     <Col xs={12} sm={6}>
-                      <Card size="small" style={{ borderLeft: '4px solid #ffc53d' }}>
+                      <Card size="small" style={{ borderLeft: `4px solid ${profit >= 0 ? '#52c41a' : '#f5222d'}` }}>
                         <Statistic
-                          title="Tiền Mặt"
-                          value={revenueStats.byMethod['cash'] || 0}
+                          title="Lợi Nhuận (Thu - Chi)"
+                          value={profit}
                           suffix="₫"
-                          valueStyle={{ color: '#ffc53d', fontWeight: 700 }}
+                          valueStyle={{ color: profit >= 0 ? '#52c41a' : '#f5222d', fontWeight: 700 }}
                           formatter={(v) => Number(v).toLocaleString('vi-VN')}
                         />
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                          Chi phí: {expenseStats.totalExpense.toLocaleString('vi-VN')}₫
+                        </div>
                       </Card>
                     </Col>
                   </Row>
@@ -442,7 +527,7 @@ export default function Reports() {
                           render: (t) => t || '-', ellipsis: true,
                         },
                       ]}
-                      dataSource={filteredTx.filter(t => (t.transactionType || t.transaction_type) !== 'commission').map((t, i) => ({ ...t, key: t.id || i }))}
+                      dataSource={incomeTx.map((t, i) => ({ ...t, key: t.id || i }))}
                       pagination={{ pageSize: 10, showTotal: (total) => `Tổng ${total} giao dịch` }}
                       scroll={{ x: 800 }}
                       size="small"
@@ -673,6 +758,170 @@ export default function Reports() {
                       dataSource={filteredBookings.map((b, i) => ({ ...b, key: b.id || i }))}
                       pagination={{ pageSize: 10, showTotal: (total) => `Tổng ${total} lịch hẹn` }}
                       scroll={{ x: 800 }}
+                      size="small"
+                    />
+                  </Card>
+                </div>
+              ),
+            },
+            {
+              key: 'expenses',
+              label: <span><WalletOutlined /> Chi Phí</span>,
+              children: (
+                <div>
+                  {/* Summary */}
+                  <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                    <Col xs={12} sm={6}>
+                      <Card size="small" style={{ borderLeft: '4px solid #f5222d' }}>
+                        <Statistic
+                          title="Tổng Chi Phí"
+                          value={expenseStats.totalExpense}
+                          suffix="₫"
+                          valueStyle={{ color: '#f5222d', fontWeight: 700 }}
+                          formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={12} sm={6}>
+                      <Card size="small" style={{ borderLeft: '4px solid #597ef7' }}>
+                        <Statistic
+                          title="Số Khoản Chi"
+                          value={expenseStats.count}
+                          valueStyle={{ color: '#597ef7', fontWeight: 700 }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={12} sm={6}>
+                      <Card size="small" style={{ borderLeft: '4px solid #ff69b4' }}>
+                        <Statistic
+                          title="Doanh Thu"
+                          value={revenueStats.totalRevenue}
+                          suffix="₫"
+                          valueStyle={{ color: '#ff69b4', fontWeight: 700 }}
+                          formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={12} sm={6}>
+                      <Card size="small" style={{ borderLeft: `4px solid ${profit >= 0 ? '#52c41a' : '#f5222d'}` }}>
+                        <Statistic
+                          title="Lợi Nhuận"
+                          value={profit}
+                          suffix="₫"
+                          valueStyle={{ color: profit >= 0 ? '#52c41a' : '#f5222d', fontWeight: 700 }}
+                          formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  <Row gutter={16} style={{ marginBottom: 24 }}>
+                    {/* Expense by Category Pie */}
+                    <Col xs={24} md={12}>
+                      <Card size="small" title="Chi Phí Theo Danh Mục">
+                        {expenseStats.categoryData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={expenseStats.categoryData}
+                                cx="50%" cy="50%"
+                                innerRadius={60} outerRadius={100}
+                                dataKey="value"
+                                label={({ name, percent }) => `${name.length > 15 ? name.slice(0, 15) + '...' : name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                {expenseStats.categoryData.map((_, i) => (
+                                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip formatter={(v) => `${Number(v).toLocaleString('vi-VN')}₫`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : <Empty description="Chưa có chi phí" />}
+                      </Card>
+                    </Col>
+
+                    {/* Expense Bar Chart */}
+                    <Col xs={24} md={12}>
+                      <Card size="small" title="Chi Phí Theo Ngày">
+                        {expenseStats.chartData.some(d => d.expense > 0) ? (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={expenseStats.chartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="date" fontSize={12} />
+                              <YAxis fontSize={12} tickFormatter={v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                              <RechartsTooltip formatter={(v) => [`${Number(v).toLocaleString('vi-VN')}₫`, 'Chi phí']} />
+                              <Bar dataKey="expense" fill="#f5222d" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : <Empty description="Chưa có chi phí" />}
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  {/* Category Breakdown Table */}
+                  <Card size="small" title="Tổng Hợp Theo Danh Mục" style={{ marginBottom: 16 }}
+                    extra={<Button icon={<DownloadOutlined />} size="small" onClick={() => handleExport('expenses')}>Xuất CSV</Button>}
+                  >
+                    <Table
+                      columns={[
+                        { title: 'Danh Mục', dataIndex: 'name', key: 'name' },
+                        {
+                          title: 'Số Tiền', dataIndex: 'value', key: 'value', width: 160,
+                          sorter: (a, b) => a.value - b.value,
+                          defaultSortOrder: 'descend',
+                          render: (v) => <span style={{ color: '#f5222d', fontWeight: 600 }}>{Number(v).toLocaleString('vi-VN')}₫</span>,
+                        },
+                        {
+                          title: 'Tỷ Lệ', key: 'percent', width: 100,
+                          render: (_, r) => expenseStats.totalExpense > 0 ? `${Math.round((r.value / expenseStats.totalExpense) * 100)}%` : '-',
+                        },
+                      ]}
+                      dataSource={expenseStats.categoryData.map((d, i) => ({ ...d, key: i }))}
+                      pagination={false}
+                      size="small"
+                    />
+                  </Card>
+
+                  {/* Detail Table */}
+                  <Card size="small" title="Chi Tiết Khoản Chi">
+                    <Table
+                      columns={[
+                        {
+                          title: 'Ngày', key: 'date', width: 140,
+                          render: (_, r) => { const d = parseDate(r.date || r.createdAt); return d ? d.format('DD/MM/YYYY HH:mm') : '-'; },
+                          sorter: (a, b) => {
+                            const da = parseDate(a.date || a.createdAt);
+                            const db = parseDate(b.date || b.createdAt);
+                            return (da?.valueOf() || 0) - (db?.valueOf() || 0);
+                          },
+                          defaultSortOrder: 'descend',
+                        },
+                        {
+                          title: 'Danh Mục', key: 'category', width: 180,
+                          render: (_, r) => {
+                            const cat = EXPENSE_CATEGORIES.find(c => c.value === r.expenseCategory);
+                            return <Tag color="red">{cat ? `${cat.icon} ${cat.label}` : r.expenseCategory || 'Khác'}</Tag>;
+                          },
+                          filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
+                          onFilter: (value, record) => record.expenseCategory === value,
+                        },
+                        {
+                          title: 'Số Tiền', key: 'amount', width: 140,
+                          render: (_, r) => <span style={{ color: '#f5222d', fontWeight: 600 }}>{Math.abs(Number(r.amount) || 0).toLocaleString('vi-VN')}₫</span>,
+                          sorter: (a, b) => Math.abs(Number(a.amount) || 0) - Math.abs(Number(b.amount) || 0),
+                        },
+                        {
+                          title: 'Phương Thức', key: 'method', width: 120,
+                          render: (_, r) => methodMap[r.paymentMethod || r.payment_method] || '-',
+                        },
+                        {
+                          title: 'Ghi Chú', dataIndex: 'notes', key: 'notes',
+                          render: (t) => t || '-', ellipsis: true,
+                        },
+                      ]}
+                      dataSource={expenseStats.transactions.map((t, i) => ({ ...t, key: t.id || i }))}
+                      pagination={{ pageSize: 10, showTotal: (total) => `Tổng ${total} khoản chi` }}
+                      scroll={{ x: 700 }}
                       size="small"
                     />
                   </Card>
