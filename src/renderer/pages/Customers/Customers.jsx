@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 
 export default function Customers() {
@@ -13,6 +13,8 @@ export default function Customers() {
   const [customerBookings, setCustomerBookings] = useState([]);
   const [customerTransactions, setCustomerTransactions] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -70,8 +72,73 @@ export default function Customers() {
   const handleViewCustomer = (customer) => {
     setSelectedCustomer(customer);
     setDetailDrawerOpen(true);
+    setIsEditMode(false);
     loadCustomerDetails(customer.id);
+    form.setFieldsValue(customer);
   };
+
+  const handleEditCustomer = async (values) => {
+    try {
+      await invoke('db:customers:update', selectedCustomer.id, values);
+      message.success('Cập nhật khách hàng thành công');
+      form.resetFields();
+      setDetailDrawerOpen(false);
+      setIsEditMode(false);
+      loadCustomers();
+    } catch (error) {
+      message.error('Lỗi cập nhật khách hàng: ' + error.message);
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId) => {
+    try {
+      await invoke('db:customers:delete', customerId);
+      message.success('Xóa khách hàng thành công');
+      setDetailDrawerOpen(false);
+      loadCustomers();
+    } catch (error) {
+      message.error('Lỗi xóa khách hàng: ' + error.message);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (customers.length === 0) {
+      message.warning('Không có dữ liệu để xuất');
+      return;
+    }
+
+    const headers = ['Họ Tên', 'Điện Thoại', 'Email', 'Địa Chỉ', 'Điểm', 'Ghi Chú'];
+    const rows = customers.map(c => [
+      c.name || '',
+      c.phone || '',
+      c.email || '',
+      c.address || '',
+      c.points || 0,
+      c.notes || '',
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `khach-hang-${new Date().getTime()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success('Xuất dữ liệu thành công');
+  };
+
+  const filteredCustomers = customers.filter(customer =>
+    customer.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+    customer.phone?.includes(searchText) ||
+    customer.email?.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   const columns = [
     {
@@ -112,15 +179,48 @@ export default function Customers() {
     {
       title: 'Thao Tác',
       key: 'action',
-      width: 100,
+      width: 150,
       render: (_, record) => (
-        <Button
-          type="link"
-          style={{ color: '#ff69b4' }}
-          onClick={() => handleViewCustomer(record)}
-        >
-          Chi Tiết
-        </Button>
+        <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            style={{ color: '#ff69b4' }}
+            onClick={() => handleViewCustomer(record)}
+          >
+            Chi Tiết
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setSelectedCustomer(record);
+              setIsEditMode(true);
+              setDetailDrawerOpen(true);
+              loadCustomerDetails(record.id);
+              form.setFieldsValue(record);
+            }}
+          >
+            Sửa
+          </Button>
+          <Popconfirm
+            title="Xóa khách hàng"
+            description="Bạn có chắc chắn muốn xóa khách hàng này?"
+            onConfirm={() => handleDeleteCustomer(record.id)}
+            okText="Có"
+            cancelText="Không"
+          >
+            <Button
+              type="link"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+            >
+              Xóa
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -129,40 +229,63 @@ export default function Customers() {
     <Card
       title="Quản Lý Khách Hàng"
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setIsModalOpen(true)}
-          style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-        >
-          Thêm Khách Hàng
-        </Button>
+        <Space>
+          <Input
+            placeholder="Tìm kiếm theo tên, điện thoại, email..."
+            prefix={<SearchOutlined />}
+            style={{ width: 300 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handleExportCSV}
+          >
+            Xuất CSV
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setIsEditMode(false);
+              form.resetFields();
+              setIsModalOpen(true);
+            }}
+            style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+          >
+            Thêm Khách Hàng
+          </Button>
+        </Space>
       }
     >
       <Spin spinning={loading}>
-        <Table
-          columns={columns}
-          dataSource={customers.map((c, i) => ({ ...c, key: c.id || i }))}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1000 }}
-        />
+        {filteredCustomers.length === 0 ? (
+          <Empty description="Không có khách hàng" style={{ marginTop: '50px' }} />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredCustomers.map((c, i) => ({ ...c, key: c.id || i }))}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 1000 }}
+          />
+        )}
       </Spin>
 
       <Modal
-        title="Thêm Khách Hàng Mới"
+        title={isEditMode ? "Chỉnh Sửa Khách Hàng" : "Thêm Khách Hàng Mới"}
         open={isModalOpen}
         onOk={() => form.submit()}
         onCancel={() => {
           setIsModalOpen(false);
           form.resetFields();
         }}
-        okText="Thêm"
+        okText={isEditMode ? "Cập Nhật" : "Thêm"}
         cancelText="Hủy"
       >
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleAddCustomer}
+          onFinish={isEditMode ? handleEditCustomer : handleAddCustomer}
         >
           <Form.Item
             label="Họ Tên"
@@ -208,9 +331,39 @@ export default function Customers() {
       <Drawer
         title={selectedCustomer ? `${selectedCustomer.name}` : 'Chi Tiết Khách Hàng'}
         placement="right"
-        onClose={() => setDetailDrawerOpen(false)}
+        onClose={() => {
+          setDetailDrawerOpen(false);
+          setIsEditMode(false);
+          form.resetFields();
+        }}
         open={detailDrawerOpen}
         width={600}
+        extra={
+          <Space>
+            {!isEditMode && (
+              <Button
+                type="primary"
+                icon={<EditOutlined />}
+                onClick={() => setIsEditMode(true)}
+                style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+              >
+                Sửa
+              </Button>
+            )}
+            {isEditMode && (
+              <>
+                <Button onClick={() => setIsEditMode(false)}>Hủy</Button>
+                <Button
+                  type="primary"
+                  onClick={() => form.submit()}
+                  style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Lưu
+                </Button>
+              </>
+            )}
+          </Space>
+        }
       >
         <Spin spinning={detailLoading}>
           {selectedCustomer && (
@@ -219,7 +372,36 @@ export default function Customers() {
                 {
                   key: 'info',
                   label: 'Thông Tin',
-                  children: (
+                  children: isEditMode ? (
+                    <Form
+                      form={form}
+                      layout="vertical"
+                      onFinish={handleEditCustomer}
+                    >
+                      <Form.Item
+                        label="Họ Tên"
+                        name="name"
+                        rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
+                      >
+                        <Input />
+                      </Form.Item>
+                      <Form.Item label="Điện Thoại" name="phone">
+                        <Input />
+                      </Form.Item>
+                      <Form.Item label="Email" name="email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]}>
+                        <Input />
+                      </Form.Item>
+                      <Form.Item label="Địa Chỉ" name="address">
+                        <Input />
+                      </Form.Item>
+                      <Form.Item label="Điểm" name="points">
+                        <Input type="number" />
+                      </Form.Item>
+                      <Form.Item label="Ghi Chú" name="notes">
+                        <Input.TextArea rows={3} />
+                      </Form.Item>
+                    </Form>
+                  ) : (
                     <Descriptions column={1} bordered size="small">
                       <Descriptions.Item label="Họ Tên">
                         {selectedCustomer.name}
