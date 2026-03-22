@@ -50,6 +50,13 @@ const App = () => {
               background: isDarkMode ? '#1f1f1f' : '#fff',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               borderRight: `1px solid ${isDarkMode ? '#333' : '#e8e8e8'}`,
+              overflow: 'auto',
+              height: '100vh',
+              position: 'fixed',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              zIndex: 100,
             }}
           >
             <div
@@ -125,7 +132,7 @@ const App = () => {
               ]}
             />
           </Sider>
-          <Layout>
+          <Layout style={{ marginLeft: collapsed ? 80 : 250, transition: 'margin-left 0.2s' }}>
             <Header
               style={{
                 padding: '0 32px',
