@@ -217,6 +217,9 @@ export default function Staff() {
   );
 
   const getMonthlyStats = () => {
+    if (!selectedMonth) {
+      return { totalHours: 0, presentDays: 0, absentDays: 0, monthRecords: [] };
+    }
     const monthStr = selectedMonth.format('YYYY-MM');
     const monthRecords = attendanceRecords.filter(r => r.date?.startsWith(monthStr));
     const totalHours = monthRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
