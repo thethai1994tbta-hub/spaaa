@@ -30,3 +30,4 @@ npm-debug.log*
 # Build artifacts
 build/
 out/
+firebase-config.json
