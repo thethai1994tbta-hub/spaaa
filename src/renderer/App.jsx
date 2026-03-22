@@ -10,7 +10,10 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   SettingOutlined,
+  LockOutlined,
+  UnlockOutlined,
 } from '@ant-design/icons';
+import { useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Customers from './pages/Customers/Customers';
 import Staff from './pages/Staff/Staff';
@@ -27,6 +30,7 @@ const App = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isUnlocked, lock, requireAuth } = useAuth();
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
@@ -157,9 +161,21 @@ const App = () => {
               </div>
               <Button
                 type="text"
-                icon={<LogoutOutlined />}
-                style={{ color: isDarkMode ? '#ccc' : '#333' }}
-              />
+                icon={isUnlocked ? <UnlockOutlined /> : <LockOutlined />}
+                onClick={() => {
+                  if (isUnlocked) {
+                    lock();
+                  } else {
+                    requireAuth(null);
+                  }
+                }}
+                style={{
+                  color: isUnlocked ? '#52c41a' : (isDarkMode ? '#ccc' : '#333'),
+                  fontSize: '16px',
+                }}
+              >
+                {isUnlocked ? 'Đã Mở Khóa' : 'Đã Khóa'}
+              </Button>
             </Header>
             <Content
               style={{

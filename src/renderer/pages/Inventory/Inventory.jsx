@@ -25,9 +25,11 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Inventory() {
   const { invoke } = useAPI();
+  const { guardAction } = useAuth();
 
   // Product states
   const [products, setProducts] = useState([]);
@@ -342,7 +344,7 @@ export default function Inventory() {
           <Popconfirm
             title="Xóa sản phẩm"
             description="Bạn có chắc chắn?"
-            onConfirm={() => handleDeleteProduct(record.id)}
+            onConfirm={guardAction(() => handleDeleteProduct(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -420,7 +422,7 @@ export default function Inventory() {
           <Popconfirm
             title="Xóa dịch vụ"
             description="Bạn có chắc chắn?"
-            onConfirm={() => handleDeleteService(record.id)}
+            onConfirm={guardAction(() => handleDeleteService(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -498,7 +500,7 @@ export default function Inventory() {
           <Popconfirm
             title="Xóa gói"
             description="Bạn có chắc chắn?"
-            onConfirm={() => handleDeletePackage(record.id)}
+            onConfirm={guardAction(() => handleDeletePackage(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -714,14 +716,14 @@ export default function Inventory() {
           onFinish={
             selectedType === 'products'
               ? isEditMode
-                ? handleUpdateProduct
+                ? guardAction(handleUpdateProduct)
                 : handleAddProduct
               : selectedType === 'services'
               ? isEditMode
-                ? handleUpdateService
+                ? guardAction(handleUpdateService)
                 : handleAddService
               : isEditMode
-              ? handleUpdatePackage
+              ? guardAction(handleUpdatePackage)
               : handleAddPackage
           }
         >

@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty, Select, DatePicker } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
+import { useAuth } from '../../context/AuthContext';
 import dayjs from 'dayjs';
 
 export default function Customers() {
   const { invoke } = useAPI();
+  const { guardAction } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -321,7 +323,7 @@ export default function Customers() {
           <Popconfirm
             title="Xóa khách hàng"
             description="Bạn có chắc chắn muốn xóa khách hàng này?"
-            onConfirm={() => handleDeleteCustomer(record.id)}
+            onConfirm={guardAction(() => handleDeleteCustomer(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -423,7 +425,7 @@ export default function Customers() {
           <Popconfirm
             title="Xóa đặt lịch"
             description="Bạn có chắc chắn muốn xóa?"
-            onConfirm={() => handleDeleteBooking(record.id)}
+            onConfirm={guardAction(() => handleDeleteBooking(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -552,7 +554,7 @@ export default function Customers() {
         <Form
           form={form}
           layout="vertical"
-          onFinish={isEditMode ? handleEditCustomer : handleAddCustomer}
+          onFinish={isEditMode ? guardAction(handleEditCustomer) : handleAddCustomer}
         >
           <Form.Item
             label="Họ Tên"
@@ -643,7 +645,7 @@ export default function Customers() {
                     <Form
                       form={form}
                       layout="vertical"
-                      onFinish={handleEditCustomer}
+                      onFinish={guardAction(handleEditCustomer)}
                     >
                       <Form.Item
                         label="Họ Tên"
@@ -783,7 +785,7 @@ export default function Customers() {
         <Form
           form={bookingForm}
           layout="vertical"
-          onFinish={isBookingEditMode ? handleEditBooking : handleAddBooking}
+          onFinish={isBookingEditMode ? guardAction(handleEditBooking) : handleAddBooking}
         >
           <Form.Item
             label="Khách Hàng"

@@ -33,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
+import { useAuth } from '../../context/AuthContext';
 
 // Helper: Convert any date format to Date object
 // Handles: Date, ISO string, Firestore Timestamp (with toDate()),
@@ -85,6 +86,7 @@ const isEarlyLeave = (checkOutTime) => {
 
 export default function Staff() {
   const { invoke } = useAPI();
+  const { guardAction } = useAuth();
   const [form] = Form.useForm();
   const [checkInForm] = Form.useForm();
 
@@ -563,7 +565,7 @@ export default function Staff() {
           <Popconfirm
             title="Xóa?"
             description="Xác nhận xóa nhân viên này?"
-            onConfirm={() => handleDeleteStaff(record.id)}
+            onConfirm={guardAction(() => handleDeleteStaff(record.id))}
             okText="Có"
             cancelText="Không"
           >
@@ -687,7 +689,7 @@ export default function Staff() {
         <Form
           form={form}
           layout="vertical"
-          onFinish={isEditMode ? handleUpdateStaff : handleAddStaff}
+          onFinish={isEditMode ? guardAction(handleUpdateStaff) : handleAddStaff}
         >
           <Form.Item
             label="Tên"
@@ -772,7 +774,7 @@ export default function Staff() {
         }
       >
         {isEditMode ? (
-          <Form form={form} layout="vertical" onFinish={handleUpdateStaff}>
+          <Form form={form} layout="vertical" onFinish={guardAction(handleUpdateStaff)}>
             <Form.Item
               label="Tên"
               name="name"
