@@ -506,7 +506,8 @@ export default function Payment() {
                             value={discountValue}
                             onChange={setDiscountValue}
                             style={{ flex: 1 }}
-                            formatter={v => discountType === 'percent' ? v : Number(v).toLocaleString('vi-VN')}
+                            formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                            parser={v => v.replace(/,/g, '')}
                           />
                         </Space.Compact>
                         {discountAmount > 0 && (
