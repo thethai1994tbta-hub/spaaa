@@ -212,7 +212,7 @@ export default function Dashboard({ onNavigate }) {
       {/* ===== STATS ROW ===== */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
-          <Card style={{ borderLeft: '4px solid #ff69b4' }}>
+          <Card hoverable onClick={() => onNavigate?.('reports')} style={{ borderLeft: '4px solid #ff69b4', cursor: 'pointer' }}>
             <Statistic
               title="Doanh Thu Hôm Nay"
               value={stats?.todayRevenue || 0}
@@ -223,7 +223,7 @@ export default function Dashboard({ onNavigate }) {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card style={{ borderLeft: '4px solid #597ef7' }}>
+          <Card hoverable onClick={() => onNavigate?.('reports')} style={{ borderLeft: '4px solid #597ef7', cursor: 'pointer' }}>
             <Statistic
               title="Doanh Thu Tháng Này"
               value={stats?.monthRevenue || 0}
@@ -234,7 +234,7 @@ export default function Dashboard({ onNavigate }) {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card style={{ borderLeft: '4px solid #36cfc9' }}>
+          <Card hoverable onClick={() => onNavigate?.('customers')} style={{ borderLeft: '4px solid #36cfc9', cursor: 'pointer' }}>
             <Statistic
               title="Lịch Hẹn Hôm Nay"
               value={todayBookings.length}
@@ -244,7 +244,7 @@ export default function Dashboard({ onNavigate }) {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card style={{ borderLeft: '4px solid #ffc53d' }}>
+          <Card hoverable onClick={() => onNavigate?.('customers')} style={{ borderLeft: '4px solid #ffc53d', cursor: 'pointer' }}>
             <Statistic
               title="Tổng Khách Hàng"
               value={stats?.totalCustomers || 0}
@@ -258,7 +258,7 @@ export default function Dashboard({ onNavigate }) {
       {/* ===== CHARTS ROW ===== */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} lg={16}>
-          <Card title={<span><RiseOutlined /> Doanh Thu 7 Ngày Gần Nhất</span>} size="small">
+          <Card title={<span><RiseOutlined /> Doanh Thu 7 Ngày Gần Nhất</span>} size="small" extra={<Button type="link" size="small" onClick={() => onNavigate?.('reports')}>Báo cáo →</Button>}>
             {revenueChartData.some(d => d.revenue > 0) ? (
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={revenueChartData}>
@@ -275,7 +275,7 @@ export default function Dashboard({ onNavigate }) {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title={<span><ShoppingCartOutlined /> Dịch Vụ Phổ Biến</span>} size="small">
+          <Card title={<span><ShoppingCartOutlined /> Dịch Vụ Phổ Biến</span>} size="small" extra={<Button type="link" size="small" onClick={() => onNavigate?.('inventory')}>Dịch vụ →</Button>}>
             {serviceChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
@@ -309,6 +309,7 @@ export default function Dashboard({ onNavigate }) {
           <Card
             title={<span><TeamOutlined /> Nhân Viên Hôm Nay ({workingStaff.length}/{staffList.length} đang làm)</span>}
             size="small"
+            extra={<Button type="link" size="small" onClick={() => onNavigate?.('staff')}>Xem tất cả →</Button>}
           >
             {staffList.length > 0 ? (
               <List
@@ -355,6 +356,7 @@ export default function Dashboard({ onNavigate }) {
                   </span>
                 }
                 size="small"
+                extra={<Button type="link" size="small" onClick={() => onNavigate?.('inventory')}>Tồn kho →</Button>}
               >
                 {lowStockItems.length > 0 ? (
                   <List
@@ -385,7 +387,7 @@ export default function Dashboard({ onNavigate }) {
 
             {/* Recent Transactions */}
             <Col span={24}>
-              <Card title={<span><DollarOutlined /> Giao Dịch Gần Đây</span>} size="small">
+              <Card title={<span><DollarOutlined /> Giao Dịch Gần Đây</span>} size="small" extra={<Button type="link" size="small" onClick={() => onNavigate?.('payment')}>Xem tất cả →</Button>}>
                 {recentTransactions.length > 0 ? (
                   <List
                     dataSource={recentTransactions}
