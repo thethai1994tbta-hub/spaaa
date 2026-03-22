@@ -60,16 +60,27 @@ const formatTime = (val) => {
   return d ? dayjs(d).format('HH:mm') : '-';
 };
 
-// Threshold: before 09:00 = present, 09:00+ = late
-// Absent = không chấm công (nhập thủ công)
+// Thresholds:
+//   Check in:  trước 09:00 = present, sau 09:00 = late
+//   Check out: trước 17:00 = early-leave
+//   Absent = không chấm công (nhập thủ công)
 const LATE_HOUR = 9;
 const LATE_MINUTE = 0;
+const END_HOUR = 17;
+const END_MINUTE = 0;
 
 const getAutoStatus = (checkInTime) => {
   if (!checkInTime) return 'present';
   const t = dayjs(checkInTime);
   const lateThreshold = t.clone().hour(LATE_HOUR).minute(LATE_MINUTE).second(0);
   return t.isAfter(lateThreshold) ? 'late' : 'present';
+};
+
+const isEarlyLeave = (checkOutTime) => {
+  if (!checkOutTime) return false;
+  const t = dayjs(checkOutTime);
+  const endThreshold = t.clone().hour(END_HOUR).minute(END_MINUTE).second(0);
+  return t.isBefore(endThreshold);
 };
 
 export default function Staff() {
@@ -308,13 +319,20 @@ export default function Staff() {
         ? parseFloat(now.diff(dayjs(checkIn), 'hour', true).toFixed(1))
         : 0;
 
-      const updateResult = await invoke('db:attendance:update', todayRecord.id, {
+      // Auto-detect early leave: checkout trước 17:00 → về sớm
+      const updateData = {
         checkOutTime: now.toISOString(),
         hoursWorked,
-      });
+      };
+      if (isEarlyLeave(now)) {
+        updateData.status = 'early-leave';
+      }
+
+      const updateResult = await invoke('db:attendance:update', todayRecord.id, updateData);
 
       if (updateResult.success) {
-        message.success(`Check out lúc ${now.format('HH:mm')} — Làm ${hoursWorked}h`);
+        const statusMsg = isEarlyLeave(now) ? ' (Về Sớm)' : '';
+        message.success(`Check out lúc ${now.format('HH:mm')} — Làm ${hoursWorked}h${statusMsg}`);
         if (selectedStaff?.id === staffId) {
           await loadAttendanceRecords(staffId);
         }
@@ -1109,7 +1127,7 @@ export default function Staff() {
           }}
         >
           <Form.Item
-            label={<span>Giờ Check In (*) <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>— Sau 09:00 tự động "Đi Muộn"</span></span>}
+            label={<span>Giờ Check In (*) <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>— Vào sau 09:00 = Đi Muộn, Ra trước 17:00 = Về Sớm</span></span>}
             name="checkInTime"
             rules={[{ required: true, message: 'Nhập giờ check in' }]}
           >
