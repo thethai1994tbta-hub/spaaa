@@ -1,0 +1,239 @@
+const { ipcMain } = require('electron');
+const {
+  addDocument,
+  getAllDocuments,
+  updateDocument,
+  deleteDocument,
+  query,
+  COLLECTIONS,
+} = require('../database/firebaseDb');
+
+function setupFirebaseIPC() {
+  // ==================== CUSTOMERS ====================
+  ipcMain.handle('db:customers:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.CUSTOMERS, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:customers:add', async (event, customer) => {
+    return addDocument(COLLECTIONS.CUSTOMERS, {
+      name: customer.name,
+      phone: customer.phone || null,
+      email: customer.email || null,
+      address: customer.address || null,
+      points: customer.points || 0,
+      notes: customer.notes || null,
+    });
+  });
+
+  ipcMain.handle('db:customers:update', async (event, id, customer) => {
+    return updateDocument(COLLECTIONS.CUSTOMERS, id, customer);
+  });
+
+  ipcMain.handle('db:customers:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.CUSTOMERS, id);
+  });
+
+  // ==================== SERVICES ====================
+  ipcMain.handle('db:services:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.SERVICES, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:services:add', async (event, service) => {
+    return addDocument(COLLECTIONS.SERVICES, {
+      name: service.name,
+      price: service.price,
+      duration: service.duration || 60,
+      description: service.description || null,
+      category: service.category || null,
+      active: true,
+    });
+  });
+
+  ipcMain.handle('db:services:update', async (event, id, service) => {
+    return updateDocument(COLLECTIONS.SERVICES, id, service);
+  });
+
+  ipcMain.handle('db:services:delete', async (event, id) => {
+    // Soft delete - mark as inactive
+    return updateDocument(COLLECTIONS.SERVICES, id, { active: false });
+  });
+
+  // ==================== STAFF ====================
+  ipcMain.handle('db:staff:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.STAFF, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:staff:add', async (event, staff) => {
+    return addDocument(COLLECTIONS.STAFF, {
+      name: staff.name,
+      phone: staff.phone || null,
+      email: staff.email || null,
+      position: staff.position || null,
+      salary: staff.salary || 0,
+      commissionRate: staff.commission_rate || 0.1,
+      active: true,
+    });
+  });
+
+  ipcMain.handle('db:staff:update', async (event, id, staff) => {
+    return updateDocument(COLLECTIONS.STAFF, id, staff);
+  });
+
+  ipcMain.handle('db:staff:delete', async (event, id) => {
+    // Soft delete
+    return updateDocument(COLLECTIONS.STAFF, id, { active: false });
+  });
+
+  // ==================== BOOKINGS ====================
+  ipcMain.handle('db:bookings:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.BOOKINGS, { field: 'bookingDate', direction: 'desc' });
+  });
+
+  ipcMain.handle('db:bookings:add', async (event, booking) => {
+    return addDocument(COLLECTIONS.BOOKINGS, {
+      customerId: booking.customer_id,
+      staffId: booking.staff_id,
+      serviceId: booking.service_id,
+      bookingDate: new Date(booking.booking_date),
+      status: booking.status || 'pending',
+      notes: booking.notes || null,
+    });
+  });
+
+  ipcMain.handle('db:bookings:update', async (event, id, booking) => {
+    const updateData = { ...booking };
+    if (updateData.booking_date) {
+      updateData.bookingDate = new Date(updateData.booking_date);
+      delete updateData.booking_date;
+    }
+    return updateDocument(COLLECTIONS.BOOKINGS, id, updateData);
+  });
+
+  ipcMain.handle('db:bookings:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.BOOKINGS, id);
+  });
+
+  // ==================== TRANSACTIONS ====================
+  ipcMain.handle('db:transactions:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.TRANSACTIONS, { field: 'createdAt', direction: 'desc' });
+  });
+
+  ipcMain.handle('db:transactions:add', async (event, transaction) => {
+    return addDocument(COLLECTIONS.TRANSACTIONS, {
+      bookingId: transaction.booking_id || null,
+      customerId: transaction.customer_id,
+      staffId: transaction.staff_id || null,
+      amount: transaction.amount,
+      paymentMethod: transaction.payment_method || 'cash',
+      transactionType: transaction.transaction_type || 'service',
+      commissionAmount: transaction.commission_amount || 0,
+      status: transaction.status || 'completed',
+    });
+  });
+
+  ipcMain.handle('db:transactions:update', async (event, id, transaction) => {
+    return updateDocument(COLLECTIONS.TRANSACTIONS, id, transaction);
+  });
+
+  // ==================== INVENTORY ====================
+  ipcMain.handle('db:inventory:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.INVENTORY, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:inventory:add', async (event, item) => {
+    return addDocument(COLLECTIONS.INVENTORY, {
+      name: item.name,
+      category: item.category || null,
+      quantity: item.quantity || 0,
+      unitPrice: item.unit_price || 0,
+      reorderLevel: item.reorder_level || 10,
+      supplier: item.supplier || null,
+    });
+  });
+
+  ipcMain.handle('db:inventory:update', async (event, id, item) => {
+    return updateDocument(COLLECTIONS.INVENTORY, id, item);
+  });
+
+  // ==================== DASHBOARD ====================
+  ipcMain.handle('db:dashboard:getStats', async () => {
+    try {
+      // Get today's transactions
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+
+      const todayTxResult = await query(COLLECTIONS.TRANSACTIONS, [
+        { field: 'createdAt', operator: '>=', value: today },
+        { field: 'createdAt', operator: '<=', value: todayEnd },
+      ]);
+
+      const todayRevenue = todayTxResult.success
+        ? todayTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        : 0;
+
+      // Get this month's transactions
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const monthTxResult = await query(COLLECTIONS.TRANSACTIONS, [
+        { field: 'createdAt', operator: '>=', value: monthStart },
+        { field: 'createdAt', operator: '<=', value: monthEnd },
+      ]);
+
+      const monthRevenue = monthTxResult.success
+        ? monthTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        : 0;
+
+      // Get today's bookings
+      const bookingsResult = await query(COLLECTIONS.BOOKINGS, [
+        { field: 'bookingDate', operator: '>=', value: today },
+        { field: 'bookingDate', operator: '<=', value: todayEnd },
+      ]);
+
+      const todayBookings = bookingsResult.success ? bookingsResult.data.length : 0;
+
+      // Get total customers
+      const customersResult = await getAllDocuments(COLLECTIONS.CUSTOMERS);
+      const totalCustomers = customersResult.success ? customersResult.data.length : 0;
+
+      return {
+        success: true,
+        data: {
+          todayRevenue,
+          monthRevenue,
+          todayBookings,
+          totalCustomers,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ==================== APP SETTINGS ====================
+  ipcMain.handle('db:settings:get', async (event, key) => {
+    try {
+      const doc = await require('../database/firebaseDb').getDatabase()
+        .collection(COLLECTIONS.APP_SETTINGS)
+        .doc(key)
+        .get();
+
+      if (doc.exists) {
+        return { success: true, data: doc.data() };
+      }
+      return { success: false, error: 'Setting not found' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('db:settings:set', async (event, key, value) => {
+    return addDocument(COLLECTIONS.APP_SETTINGS, { key, value });
+  });
+
+  console.log('[IPC] Firebase handlers registered');
+}
+
+module.exports = { setupFirebaseIPC };

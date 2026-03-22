@@ -1,11 +1,18 @@
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const isDev = process.env.NODE_ENV === 'development';
 
-const { initDatabase } = require('./database/db');
-const { setupIPC } = require('./ipc/handlers');
+// Firebase setup
+const { initDatabase: initFirebase } = require('./database/firebaseDb');
+const { setupFirebaseIPC } = require('./ipc/firebaseHandlers');
+
+// SQLite fallback
+const { initDatabase: initSQLite } = require('./database/db');
+const { setupIPC: setupSQLiteIPC } = require('./ipc/handlers');
 
 let mainWindow;
+let useFirebase = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -29,9 +36,30 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.on('ready', () => {
-  initDatabase();
-  setupIPC();
+app.on('ready', async () => {
+  try {
+    // Try to initialize Firebase
+    const firebaseConfigPath = path.join(__dirname, '../config/firebase-config.json');
+    if (fs.existsSync(firebaseConfigPath)) {
+      console.log('[APP] Firebase config found, initializing...');
+      await initFirebase();
+      setupFirebaseIPC();
+      useFirebase = true;
+      console.log('[APP] Using Firebase as database');
+    } else {
+      console.log('[APP] Firebase config not found, using SQLite');
+      initSQLite();
+      setupSQLiteIPC();
+      useFirebase = false;
+    }
+  } catch (error) {
+    console.error('[APP] Firebase initialization failed:', error.message);
+    console.log('[APP] Falling back to SQLite');
+    initSQLite();
+    setupSQLiteIPC();
+    useFirebase = false;
+  }
+
   createWindow();
   createMenu();
 });
