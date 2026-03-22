@@ -268,7 +268,10 @@ export default function Staff() {
             onClick={() => {
               setSelectedStaff(record);
               setIsCheckInModalOpen(true);
-              checkInForm.resetFields();
+              checkInForm.setFieldsValue({
+                checkInTime: dayjs(),
+                status: 'present',
+              });
             }}
             style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
           >
@@ -682,25 +685,48 @@ export default function Staff() {
           form={checkInForm}
           layout="vertical"
           onFinish={handleCheckIn}
+          onValuesChange={(changedValues) => {
+            // Auto-calculate hours if both times are set
+            if (changedValues.checkOutTime && checkInForm.getFieldValue('checkInTime')) {
+              const checkIn = checkInForm.getFieldValue('checkInTime');
+              const checkOut = changedValues.checkOutTime;
+              const hours = checkOut.diff(checkIn, 'hour', true);
+              checkInForm.setFieldsValue({ hoursWorked: parseFloat(hours.toFixed(1)) });
+            }
+          }}
         >
           <Form.Item
-            label="Giờ Check In"
+            label="Giờ Check In (*)  - Tự động lấy giờ hiện tại, có thể sửa"
             name="checkInTime"
-            rules={[{ required: true }]}
+            rules={[{ required: true, message: 'Nhập giờ check in' }]}
           >
-            <DatePicker showTime format="DD/MM/YYYY HH:mm" />
+            <DatePicker
+              showTime
+              format="DD/MM/YYYY HH:mm"
+              placeholder="Chọn giờ check in"
+            />
           </Form.Item>
           <Form.Item
-            label="Giờ Check Out"
+            label="Giờ Check Out (tuỳ chọn)"
             name="checkOutTime"
           >
-            <DatePicker showTime format="DD/MM/YYYY HH:mm" />
+            <DatePicker
+              showTime
+              format="DD/MM/YYYY HH:mm"
+              placeholder="Chọn giờ check out"
+            />
           </Form.Item>
           <Form.Item
-            label="Giờ Làm"
+            label="Giờ Làm (tự động tính nếu có check out)"
             name="hoursWorked"
           >
-            <InputNumber min={0} max={24} step={0.5} style={{ width: '100%' }} />
+            <InputNumber
+              min={0}
+              max={24}
+              step={0.5}
+              style={{ width: '100%' }}
+              placeholder="0"
+            />
           </Form.Item>
           <Form.Item
             label="Trạng Thái"
@@ -720,7 +746,7 @@ export default function Staff() {
             label="Ghi Chú"
             name="notes"
           >
-            <Input.TextArea rows={2} />
+            <Input.TextArea rows={2} placeholder="Ghi chú thêm nếu cần" />
           </Form.Item>
         </Form>
       </Modal>
