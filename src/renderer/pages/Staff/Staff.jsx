@@ -16,6 +16,7 @@ export default function Staff() {
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
+  const [commissionMonth, setCommissionMonth] = useState(dayjs());
   const [commissionData, setCommissionData] = useState(null);
   const [form] = Form.useForm();
   const [checkInForm] = Form.useForm();
@@ -50,30 +51,36 @@ export default function Staff() {
     }
   };
 
-  const loadCommissionData = async (staffId, rate) => {
+  const loadCommissionData = async (staffId, rate, month = null) => {
     try {
       const result = await invoke('db:query', 'TRANSACTIONS', [
         { field: 'staffId', operator: '==', value: staffId }
       ]);
 
-      const monthStr = selectedMonth.format('YYYY-MM');
-      const monthTransactions = (result.data || []).filter(t =>
-        t.date?.startsWith(monthStr) ||
-        (t.createdAt && t.createdAt.startsWith(monthStr))
-      );
+      const targetMonth = month || commissionMonth;
+      const monthStr = targetMonth.format('YYYY-MM');
+      const monthTransactions = (result.data || []).filter(t => {
+        const tDate = t.date || t.createdAt || '';
+        return tDate.startsWith(monthStr);
+      });
 
-      const totalRevenue = monthTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const commission = totalRevenue * (rate / 100);
+      const totalRevenue = monthTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const commission = totalRevenue * (Number(rate) / 100);
 
       setCommissionData({
         totalRevenue,
         commissionRate: rate,
         totalCommission: commission,
-        transactions: monthTransactions,
+        transactions: monthTransactions || [],
       });
     } catch (error) {
       console.error('[Staff] Error loading commission:', error);
-      setCommissionData(null);
+      setCommissionData({
+        totalRevenue: 0,
+        commissionRate: rate,
+        totalCommission: 0,
+        transactions: [],
+      });
     }
   };
 
@@ -564,15 +571,15 @@ export default function Staff() {
                       <div style={{ marginBottom: 20 }}>
                         <DatePicker
                           picker="month"
-                          value={selectedMonth}
+                          value={commissionMonth}
                           onChange={(date) => {
-                            setSelectedMonth(date);
-                            loadCommissionData(selectedStaff.id, selectedStaff.commission_rate || 0);
+                            setCommissionMonth(date);
+                            loadCommissionData(selectedStaff.id, selectedStaff.commission_rate || 0, date);
                           }}
                           format="MM/YYYY"
                         />
                       </div>
-                      {commissionData && (
+                      {commissionData ? (
                         <>
                           <Row gutter={16} style={{ marginBottom: 20 }}>
                             <Col span={8}>
@@ -600,38 +607,43 @@ export default function Staff() {
                               />
                             </Col>
                           </Row>
-                          <Table
-                            columns={[
-                              {
-                                title: 'Ngày',
-                                dataIndex: 'date',
-                                key: 'date',
-                                width: 120,
-                                render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : (new Date().toLocaleDateString('vi-VN')),
-                              },
-                              {
-                                title: 'Số Tiền',
-                                dataIndex: 'amount',
-                                key: 'amount',
-                                width: 130,
-                                render: (amount) => `${Number(amount || 0).toLocaleString('vi-VN')} ₫`,
-                              },
-                              {
-                                title: 'Hoa Hồng',
-                                key: 'commission',
-                                width: 130,
-                                render: (_, record) => {
-                                  const commission = (record.amount || 0) * (commissionData.commissionRate / 100);
-                                  return `${Number(commission).toLocaleString('vi-VN')} ₫`;
+                          {commissionData.transactions.length > 0 ? (
+                            <Table
+                              columns={[
+                                {
+                                  title: 'Ngày',
+                                  dataIndex: 'date',
+                                  key: 'date',
+                                  width: 120,
+                                  render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-',
                                 },
-                              },
-                            ]}
-                            dataSource={commissionData.transactions.map((t, i) => ({ ...t, key: t.id || i }))}
-                            pagination={false}
-                            size="small"
-                            locale={{ emptyText: 'Không có doanh số' }}
-                          />
+                                {
+                                  title: 'Số Tiền',
+                                  dataIndex: 'amount',
+                                  key: 'amount',
+                                  width: 130,
+                                  render: (amount) => `${Number(amount || 0).toLocaleString('vi-VN')} ₫`,
+                                },
+                                {
+                                  title: 'Hoa Hồng',
+                                  key: 'commission',
+                                  width: 130,
+                                  render: (_, record) => {
+                                    const commission = (Number(record.amount) || 0) * (Number(commissionData.commissionRate) / 100);
+                                    return `${Number(commission).toLocaleString('vi-VN')} ₫`;
+                                  },
+                                },
+                              ]}
+                              dataSource={commissionData.transactions.map((t, i) => ({ ...t, key: t.id || i }))}
+                              pagination={false}
+                              size="small"
+                            />
+                          ) : (
+                            <Empty description="Không có doanh số" style={{ marginTop: 30 }} />
+                          )}
                         </>
+                      ) : (
+                        <Spin />
                       )}
                     </div>
                   ),
