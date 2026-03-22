@@ -258,9 +258,22 @@ export default function Staff() {
     {
       title: 'Thao Tác',
       key: 'action',
-      width: 140,
+      width: 200,
       render: (_, record) => (
         <Space size="small">
+          <Button
+            type="primary"
+            size="small"
+            icon={<LoginOutlined />}
+            onClick={() => {
+              setSelectedStaff(record);
+              setIsCheckInModalOpen(true);
+              checkInForm.resetFields();
+            }}
+            style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+          >
+            Chấm
+          </Button>
           <Button
             type="link"
             size="small"
