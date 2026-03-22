@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Layout, Menu, Button, Spin } from 'antd';
 import {
   DashboardOutlined,
@@ -49,12 +48,6 @@ const App = () => {
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
         <Layout style={{ minHeight: '100vh', background: isDarkMode ? '#0f0f0f' : '#f5f7fa' }}>
           <Sider
             trigger={null}
@@ -209,15 +202,6 @@ const App = () => {
                 minHeight: 'calc(100vh - 134px)',
               }}
             >
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/staff" element={<Staff />} />
-                <Route path="/payment" element={<Payment />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/reports" element={<Reports />} />
-              </Routes>
-
               {currentPage === 'dashboard' && <Dashboard />}
               {currentPage === 'customers' && <Customers />}
               {currentPage === 'staff' && <Staff />}
@@ -228,7 +212,6 @@ const App = () => {
             </Content>
           </Layout>
         </Layout>
-      </Router>
     </ThemeContext.Provider>
   );
 };
