@@ -174,8 +174,8 @@ export default function Inventory() {
       const totalCost = (Number(values.unitCost) || 0) * (values.quantity || 0);
 
       await invoke('db:inventory:update', product.id, {
-        ...product,
-        quantity: newQuantity,
+        name: product.name, category: product.category, quantity: newQuantity,
+        unitPrice: product.unitPrice, reorderLevel: product.reorderLevel, supplier: product.supplier,
       });
 
       // Log stock movement

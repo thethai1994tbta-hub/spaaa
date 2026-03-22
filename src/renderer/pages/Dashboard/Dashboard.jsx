@@ -135,7 +135,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
           const txDate = t.date || t.createdAt;
           return txDate && dayjs(txDate).format('YYYY-MM-DD') === dateStr;
         })
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       data.push({
         date: date.format('DD/MM'),
         revenue: dayRevenue,

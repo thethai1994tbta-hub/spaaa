@@ -303,14 +303,13 @@ export default function Payment({ pendingBooking, onClearPending }) {
           const commission = Math.round((staffTotal * rate) / 100);
 
           await invoke('db:transactions:add', {
-            customer_id: selectedCustomer,
-            customer_name: customer?.name || '',
+            customer_id: isWalkIn ? null : selectedCustomer,
+            customer_name: isWalkIn ? 'Khách Vãng Lai' : (customer?.name || ''),
             staff_id: staffId,
             staff_name: staff?.name || '',
             amount: staffTotal,
             commission_amount: commission,
             transaction_type: 'commission',
-            payment_method: paymentMethod,
             date: new Date().toISOString(),
             notes: `Hoa hồng từ giao dịch`,
           });
@@ -332,7 +331,10 @@ export default function Payment({ pendingBooking, onClearPending }) {
               const prod = inventoryList.find(p => p.id === item.id);
               if (prod) {
                 const newQty = Math.max(0, (prod.quantity || 0) - (item.quantity || 1));
-                await invoke('db:inventory:update', item.id, { ...prod, quantity: newQty });
+                await invoke('db:inventory:update', item.id, {
+                  name: prod.name, category: prod.category, quantity: newQty,
+                  unitPrice: prod.unitPrice, reorderLevel: prod.reorderLevel, supplier: prod.supplier,
+                });
               }
             } catch (e) {
               console.error('Lỗi trừ tồn kho:', e);
@@ -678,7 +680,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                             value={null}
                             onChange={addProductToCart}
                             options={inventoryList.map(p => ({
-                              label: `${p.name} — ${Number(p.price || 0).toLocaleString('vi-VN')}₫ (Kho: ${p.quantity || 0})`,
+                              label: `${p.name} — ${Number(p.unitPrice || p.price || 0).toLocaleString('vi-VN')}₫ (Kho: ${p.quantity || 0})`,
                               value: p.id,
                             }))}
                           />
