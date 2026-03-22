@@ -16,6 +16,7 @@ import {
   Tag,
   Descriptions,
   Tabs,
+  Select,
 } from 'antd';
 import {
   PlusOutlined,
@@ -23,6 +24,7 @@ import {
   EditOutlined,
   DownloadOutlined,
   SearchOutlined,
+  ImportOutlined,
 } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 import { useAuth } from '../../context/AuthContext';
@@ -45,6 +47,7 @@ export default function Inventory() {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Selection states
   const [selectedType, setSelectedType] = useState('products'); // products, services, packages
@@ -57,6 +60,7 @@ export default function Inventory() {
 
   // Forms
   const [form] = Form.useForm();
+  const [importForm] = Form.useForm();
 
   useEffect(() => {
     loadProducts();
@@ -152,6 +156,40 @@ export default function Inventory() {
       await invoke('db:inventory:delete', id);
       message.success('Xóa thành công');
       setDetailDrawerOpen(false);
+      loadProducts();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  // ============ IMPORT STOCK ============
+  const handleImportStock = async (values) => {
+    try {
+      const product = products.find(p => p.id === values.productId);
+      if (!product) {
+        message.error('Không tìm thấy sản phẩm');
+        return;
+      }
+      const newQuantity = (product.quantity || 0) + (values.quantity || 0);
+      await invoke('db:inventory:update', product.id, {
+        ...product,
+        quantity: newQuantity,
+      });
+      // Log stock movement
+      try {
+        await invoke('db:stock-movements:add', {
+          itemId: product.id,
+          itemName: product.name,
+          date: new Date().toISOString(),
+          quantity: values.quantity,
+          type: 'import',
+          notes: values.notes || `Nhập ${values.quantity} ${product.name}`,
+          user: 'Admin',
+        });
+      } catch {}
+      message.success(`Nhập ${values.quantity} ${product.name} thành công (Tổng: ${newQuantity})`);
+      importForm.resetFields();
+      setIsImportModalOpen(false);
       loadProducts();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
@@ -543,19 +581,31 @@ export default function Inventory() {
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                   />
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                      setSelectedType('products');
-                      setIsEditMode(false);
-                      form.resetFields();
-                      setIsModalOpen(true);
-                    }}
-                    style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-                  >
-                    Thêm Sản Phẩm
-                  </Button>
+                  <Space>
+                    <Button
+                      icon={<ImportOutlined />}
+                      onClick={() => {
+                        importForm.resetFields();
+                        setIsImportModalOpen(true);
+                      }}
+                      style={{ borderColor: '#52c41a', color: '#52c41a' }}
+                    >
+                      Nhập Hàng
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => {
+                        setSelectedType('products');
+                        setIsEditMode(false);
+                        form.resetFields();
+                        setIsModalOpen(true);
+                      }}
+                      style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                    >
+                      Thêm Sản Phẩm
+                    </Button>
+                  </Space>
                 </div>
                 <Spin spinning={productsLoading}>
                   {getFilteredData().length === 0 ? (
@@ -802,6 +852,55 @@ export default function Inventory() {
               </Form.Item>
             </>
           )}
+        </Form>
+      </Modal>
+
+      {/* Import Stock Modal */}
+      <Modal
+        title="Nhập Hàng"
+        open={isImportModalOpen}
+        onOk={() => importForm.submit()}
+        onCancel={() => {
+          setIsImportModalOpen(false);
+          importForm.resetFields();
+        }}
+        okText="Nhập Hàng"
+        cancelText="Hủy"
+        okButtonProps={{ style: { background: '#52c41a', borderColor: '#52c41a' } }}
+      >
+        <Form
+          form={importForm}
+          layout="vertical"
+          onFinish={handleImportStock}
+        >
+          <Form.Item
+            label="Sản Phẩm"
+            name="productId"
+            rules={[{ required: true, message: 'Vui lòng chọn sản phẩm' }]}
+          >
+            <Select
+              placeholder="Chọn sản phẩm cần nhập"
+              showSearch
+              optionFilterProp="label"
+              options={products.map(p => ({
+                label: `${p.name} (Kho: ${p.quantity || 0})`,
+                value: p.id,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Số Lượng Nhập"
+            name="quantity"
+            rules={[{ required: true, message: 'Vui lòng nhập số lượng' }]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số lượng" />
+          </Form.Item>
+          <Form.Item
+            label="Ghi Chú"
+            name="notes"
+          >
+            <Input.TextArea rows={2} placeholder="Ghi chú nhập hàng..." />
+          </Form.Item>
         </Form>
       </Modal>
     </Card>
