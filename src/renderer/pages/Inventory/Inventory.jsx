@@ -12,7 +12,9 @@ export default function Inventory() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [stockInForm] = Form.useForm();
 
   useEffect(() => {
     loadItems();
@@ -77,6 +79,27 @@ export default function Inventory() {
       message.success('Xóa thành công');
       setDetailDrawerOpen(false);
       loadItems();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  const handleStockIn = async (values) => {
+    try {
+      const newQuantity = (selectedItem.quantity || 0) + (values.quantity || 0);
+      await invoke('db:inventory:update', selectedItem.id, {
+        name: selectedItem.name,
+        category: selectedItem.category || '',
+        quantity: newQuantity,
+        unitPrice: selectedItem.unitPrice || 0,
+        reorderLevel: selectedItem.reorderLevel || 0,
+        supplier: selectedItem.supplier || '',
+      });
+      message.success(`Nhập hàng thành công! Số lượng mới: ${newQuantity}`);
+      stockInForm.resetFields();
+      setIsStockInModalOpen(false);
+      loadItems();
+      setDetailDrawerOpen(false);
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -333,14 +356,22 @@ export default function Inventory() {
         extra={
           <Space>
             {!isEditMode && (
-              <Button
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={() => setIsEditMode(true)}
-                style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-              >
-                Sửa
-              </Button>
+              <>
+                <Button
+                  onClick={() => setIsStockInModalOpen(true)}
+                  style={{ color: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Nhập Hàng
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => setIsEditMode(true)}
+                  style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                >
+                  Sửa
+                </Button>
+              </>
             )}
             {isEditMode && (
               <>
@@ -409,6 +440,45 @@ export default function Inventory() {
           )
         )}
       </Drawer>
+
+      <Modal
+        title={`Nhập Hàng - ${selectedItem?.name}`}
+        open={isStockInModalOpen}
+        onCancel={() => {
+          setIsStockInModalOpen(false);
+          stockInForm.resetFields();
+        }}
+        onOk={() => stockInForm.submit()}
+        okText="Nhập"
+        cancelText="Hủy"
+      >
+        <Form
+          form={stockInForm}
+          layout="vertical"
+          onFinish={handleStockIn}
+        >
+          <Form.Item
+            label="Số Lượng Nhập"
+            name="quantity"
+            rules={[{ required: true, message: 'Nhập số lượng' }]}
+          >
+            <InputNumber min={1} placeholder="Số lượng" style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            label="Ghi Chú (Mã HĐ, Ngày, v.v)"
+            name="notes"
+          >
+            <Input.TextArea rows={3} placeholder="Ghi chú nhập hàng" />
+          </Form.Item>
+          {selectedItem && (
+            <div style={{ padding: '12px', background: '#f5f5f5', borderRadius: '4px' }}>
+              <p><strong>Tên:</strong> {selectedItem.name}</p>
+              <p><strong>SL Hiện Tại:</strong> {selectedItem.quantity || 0}</p>
+              <p><strong>Giá/Cái:</strong> {selectedItem.unitPrice ? `${Number(selectedItem.unitPrice).toLocaleString('vi-VN')} ₫` : '0 ₫'}</p>
+            </div>
+          )}
+        </Form>
+      </Modal>
     </Card>
   );
 }
