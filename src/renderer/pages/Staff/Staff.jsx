@@ -61,26 +61,23 @@ const formatTime = (val) => {
   return d ? dayjs(d).format('HH:mm') : '-';
 };
 
-// Thresholds:
-//   Check in:  trước 09:00 = present, sau 09:00 = late
-//   Check out: trước 17:00 = early-leave
-//   Absent = không chấm công (nhập thủ công)
-const LATE_HOUR = 9;
-const LATE_MINUTE = 0;
-const END_HOUR = 17;
-const END_MINUTE = 0;
+// Default thresholds (overridden from Settings)
+let LATE_HOUR = 9;
+let LATE_MINUTE = 0;
+let END_HOUR = 17;
+let END_MINUTE = 0;
 
-const getAutoStatus = (checkInTime) => {
+const getAutoStatus = (checkInTime, lateH = LATE_HOUR, lateM = LATE_MINUTE) => {
   if (!checkInTime) return 'present';
   const t = dayjs(checkInTime);
-  const lateThreshold = t.clone().hour(LATE_HOUR).minute(LATE_MINUTE).second(0);
+  const lateThreshold = t.clone().hour(lateH).minute(lateM).second(0);
   return t.isAfter(lateThreshold) ? 'late' : 'present';
 };
 
-const isEarlyLeave = (checkOutTime) => {
+const isEarlyLeave = (checkOutTime, endH = END_HOUR, endM = END_MINUTE) => {
   if (!checkOutTime) return false;
   const t = dayjs(checkOutTime);
-  const endThreshold = t.clone().hour(END_HOUR).minute(END_MINUTE).second(0);
+  const endThreshold = t.clone().hour(endH).minute(endM).second(0);
   return t.isBefore(endThreshold);
 };
 
@@ -109,6 +106,18 @@ export default function Staff() {
   // ============ LOAD DATA ============
   useEffect(() => {
     loadStaff();
+    // Load work time settings
+    (async () => {
+      try {
+        const res = await invoke('db:settings:get', 'workTime');
+        if (res.success && res.data) {
+          LATE_HOUR = Number(res.data.lateHour) || 9;
+          LATE_MINUTE = Number(res.data.lateMinute) || 0;
+          END_HOUR = Number(res.data.endHour) || 17;
+          END_MINUTE = Number(res.data.endMinute) || 0;
+        }
+      } catch {}
+    })();
   }, []);
 
   const loadStaff = async () => {

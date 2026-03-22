@@ -35,6 +35,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const [inventoryList, setInventoryList] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [bankConfig, setBankConfig] = useState(null);
+  const [pointRate, setPointRate] = useState(10000); // VND per point, default 10k
 
   // Current transaction
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -128,6 +129,10 @@ export default function Payment({ pendingBooking, onClearPending }) {
         const bankRes = await invoke('db:settings:get', 'bank');
         setBankConfig(bankRes);
       } catch { /* not configured yet */ }
+      try {
+        const spaRes = await invoke('db:settings:get', 'spa');
+        if (spaRes.success && spaRes.data?.pointRate) setPointRate(Number(spaRes.data.pointRate) || 10000);
+      } catch {}
       setCustomers(custRes.data || custRes || []);
       setStaffList(staffRes.data || staffRes || []);
       const svcs = svcRes.data || svcRes || [];
@@ -179,12 +184,16 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const addProductToCart = (productId) => {
     const product = inventoryList.find(p => p.id === productId);
     if (!product) return;
+    if ((product.quantity || 0) <= 0) {
+      message.warning(`${product.name} đã hết hàng`);
+      return;
+    }
     setCartItems(prev => [...prev, {
       key: Date.now(),
       type: 'product',
       id: product.id,
       name: product.name,
-      price: Number(product.price) || 0,
+      price: Number(product.unitPrice || product.price) || 0,
       quantity: 1,
       maxQuantity: product.quantity || 999,
       staffId: null,
@@ -215,7 +224,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
     ? Math.round(subtotal * (discountValue / 100))
     : (discountValue || 0);
 
-  const pointsDiscount = pointsUsed * 1000; // 1 point = 1,000 VND
+  const pointsDiscount = pointsUsed * 1000; // 1 point = 1,000 VND quy đổi
 
   const total = Math.max(0, subtotal - discountAmount - pointsDiscount);
 
@@ -240,7 +249,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
     try {
       const isWalkIn = selectedCustomer === 'walk-in';
       const customer = isWalkIn ? null : customers.find(c => c.id === selectedCustomer);
-      const pointsEarned = isWalkIn ? 0 : Math.floor(total / 10000); // 10,000 VND = 1 point
+      const pointsEarned = isWalkIn ? 0 : Math.floor(total / pointRate);
 
       const txData = {
         customer_id: isWalkIn ? null : selectedCustomer,
@@ -316,11 +325,28 @@ export default function Payment({ pendingBooking, onClearPending }) {
           customerPhone: isWalkIn ? '' : (customer?.phone || ''),
         });
 
+        // Deduct inventory for product items
+        for (const item of cartItems) {
+          if (item.type === 'product' && item.id) {
+            try {
+              const prod = inventoryList.find(p => p.id === item.id);
+              if (prod) {
+                const newQty = Math.max(0, (prod.quantity || 0) - (item.quantity || 1));
+                await invoke('db:inventory:update', item.id, { ...prod, quantity: newQty });
+              }
+            } catch (e) {
+              console.error('Lỗi trừ tồn kho:', e);
+            }
+          }
+        }
+
         // Mark linked booking as completed
         if (linkedBookingId) {
           try {
             await invoke('db:bookings:update', linkedBookingId, { status: 'completed' });
-          } catch {}
+          } catch (e) {
+            console.error('Lỗi cập nhật booking:', e);
+          }
           setLinkedBookingId(null);
         }
 
