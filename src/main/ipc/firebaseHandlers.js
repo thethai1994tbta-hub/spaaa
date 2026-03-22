@@ -184,6 +184,10 @@ function setupFirebaseIPC() {
     return updateDocument(COLLECTIONS.INVENTORY, id, updateData);
   });
 
+  ipcMain.handle('db:inventory:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.INVENTORY, id);
+  });
+
   // ==================== DASHBOARD ====================
   ipcMain.handle('db:dashboard:getStats', async () => {
     try {
