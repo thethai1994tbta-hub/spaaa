@@ -370,6 +370,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
   };
 
   const expenseTransactions = transactions.filter(t => {
+    if (t.deleted) return false;
     const type = t.transactionType || t.transaction_type;
     return type === 'expense';
   });
@@ -531,7 +532,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
           description="Hành động này không thể hoàn tác."
           onConfirm={guardAction(async () => {
             try {
-              await invoke('db:transactions:update', r.id, { transaction_type: 'deleted', deleted: true });
+              await invoke('db:transactions:update', r.id, { deleted: true, transactionType: 'deleted', transaction_type: 'deleted' });
               message.success('Đã xóa giao dịch');
               loadData();
             } catch (error) {
@@ -978,7 +979,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                             title="Xóa khoản chi này?"
                             onConfirm={async () => {
                               try {
-                                await invoke('db:transactions:update', r.id, { deleted: true, transaction_type: 'expense_deleted' });
+                                await invoke('db:transactions:update', r.id, { deleted: true, transactionType: 'expense_deleted', transaction_type: 'expense_deleted' });
                                 message.success('Đã xóa');
                                 loadData();
                               } catch (error) {
