@@ -27,20 +27,24 @@ export default function Settings() {
     loadSettings();
   }, []);
 
+  const safeFetch = async (key) => {
+    try {
+      const res = await invoke('db:settings:get', key);
+      return res.success ? res.data : {};
+    } catch {
+      return {};
+    }
+  };
+
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const [spaRes, bankRes, securityRes, workTimeRes] = await Promise.all([
-        invoke('db:settings:get', 'spa'),
-        invoke('db:settings:get', 'bank'),
-        invoke('db:settings:get', 'security'),
-        invoke('db:settings:get', 'workTime'),
+      const [spa, bank, security, workTime] = await Promise.all([
+        safeFetch('spa'),
+        safeFetch('bank'),
+        safeFetch('security'),
+        safeFetch('workTime'),
       ]);
-
-      const spa = spaRes.success ? spaRes.data : {};
-      const bank = bankRes.success ? bankRes.data : {};
-      const security = securityRes.success ? securityRes.data : {};
-      const workTime = workTimeRes.success ? workTimeRes.data : {};
 
       setSettings({ spa, bank, security, workTime });
 

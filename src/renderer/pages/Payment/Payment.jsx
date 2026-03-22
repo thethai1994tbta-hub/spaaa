@@ -56,16 +56,19 @@ export default function Payment() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [custRes, staffRes, svcRes, pkgRes, invRes, txRes, bankRes] = await Promise.all([
+      const [custRes, staffRes, svcRes, pkgRes, invRes, txRes] = await Promise.all([
         invoke('db:customers:getAll'),
         invoke('db:staff:getAll'),
         invoke('db:services:getAll'),
         invoke('db:packages:getAll'),
         invoke('db:inventory:getAll'),
         invoke('db:transactions:getAll'),
-        invoke('db:settings:get', 'bank'),
       ]);
-      if (bankRes.success) setBankConfig(bankRes.data);
+      // Bank config is optional - don't let it break loading
+      try {
+        const bankRes = await invoke('db:settings:get', 'bank');
+        setBankConfig(bankRes);
+      } catch { /* not configured yet */ }
       setCustomers(custRes.data || custRes || []);
       setStaffList(staffRes.data || staffRes || []);
       const svcs = svcRes.data || svcRes || [];
