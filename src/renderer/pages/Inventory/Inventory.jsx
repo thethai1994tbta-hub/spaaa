@@ -171,10 +171,13 @@ export default function Inventory() {
         return;
       }
       const newQuantity = (product.quantity || 0) + (values.quantity || 0);
+      const totalCost = (Number(values.unitCost) || 0) * (values.quantity || 0);
+
       await invoke('db:inventory:update', product.id, {
         ...product,
         quantity: newQuantity,
       });
+
       // Log stock movement
       try {
         await invoke('db:stock-movements:add', {
@@ -183,11 +186,29 @@ export default function Inventory() {
           date: new Date().toISOString(),
           quantity: values.quantity,
           type: 'import',
+          unitCost: Number(values.unitCost) || 0,
+          totalCost,
           notes: values.notes || `Nhập ${values.quantity} ${product.name}`,
           user: 'Admin',
         });
       } catch {}
-      message.success(`Nhập ${values.quantity} ${product.name} thành công (Tổng: ${newQuantity})`);
+
+      // Ghi chi phí vào báo cáo nếu có nhập giá tiền
+      if (totalCost > 0) {
+        try {
+          await invoke('db:transactions:add', {
+            transaction_type: 'expense',
+            expense_category: 'supplies',
+            expense_category_label: 'Vật Tư / Nguyên Liệu',
+            amount: -totalCost,
+            notes: `Nhập hàng: ${values.quantity} ${product.name}${values.notes ? ` - ${values.notes}` : ''}`,
+            payment_method: values.payment_method || 'cash',
+            date: new Date().toISOString(),
+          });
+        } catch {}
+      }
+
+      message.success(`Nhập ${values.quantity} ${product.name} thành công (Tổng kho: ${newQuantity})${totalCost > 0 ? ` | Chi phí: ${totalCost.toLocaleString('vi-VN')}₫` : ''}`);
       importForm.resetFields();
       setIsImportModalOpen(false);
       loadProducts();
@@ -894,6 +915,28 @@ export default function Inventory() {
             rules={[{ required: true, message: 'Vui lòng nhập số lượng' }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số lượng" />
+          </Form.Item>
+          <Form.Item
+            label="Đơn Giá Nhập (₫)"
+            name="unitCost"
+            extra="Không bắt buộc. Nếu nhập sẽ tự ghi vào báo cáo chi phí."
+          >
+            <InputNumber
+              min={0}
+              style={{ width: '100%' }}
+              formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+              parser={(v) => v.replace(/,/g, '')}
+              placeholder="Ví dụ: 50,000"
+            />
+          </Form.Item>
+          <Form.Item label="Phương Thức Thanh Toán" name="payment_method" initialValue="cash">
+            <Select
+              options={[
+                { label: 'Tiền mặt', value: 'cash' },
+                { label: 'Chuyển khoản', value: 'transfer' },
+                { label: 'Thẻ', value: 'card' },
+              ]}
+            />
           </Form.Item>
           <Form.Item
             label="Ghi Chú"
