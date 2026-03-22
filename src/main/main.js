@@ -1,7 +1,10 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = process.env.NODE_ENV === 'development';
+
+// License system
+const { getMachineId, loadLicense, activateLicense } = require('./license');
 
 // Firebase setup
 const { initDatabase: initFirebase } = require('./database/firebaseDb');
@@ -61,6 +64,20 @@ function createWindow() {
   if (isDev) mainWindow.webContents.openDevTools();
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+// ==================== LICENSE IPC ====================
+ipcMain.handle('license:check', async () => {
+  if (isDev) return { valid: true, dev: true };
+  return loadLicense();
+});
+
+ipcMain.handle('license:getMachineId', async () => {
+  return getMachineId();
+});
+
+ipcMain.handle('license:activate', async (event, licenseKey, expiryDate) => {
+  return activateLicense(licenseKey, expiryDate);
+});
 
 app.on('ready', async () => {
   try {

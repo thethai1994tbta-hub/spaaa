@@ -2,6 +2,7 @@
   "name": "spa-vip-management",
   "version": "1.0.0",
   "description": "Professional SPA Management System - Electron + React + Firebase/Firestore",
+  "author": "THAI SPA VIP",
   "main": "src/main/main.js",
   "homepage": "./",
   "scripts": {
@@ -39,42 +40,5 @@
     "electron": "^27.0.0",
     "electron-builder": "^24.9.0",
     "vite": "^5.0.0"
-  },
-  "build": {
-    "appId": "com.spa.vip.management",
-    "productName": "SPA VIP Management",
-    "directories": {
-      "buildResources": "public",
-      "output": "dist"
-    },
-    "files": [
-      "src/**/*",
-      "public/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "public/images/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "SPA VIP Management"
-    }
   }
 }
