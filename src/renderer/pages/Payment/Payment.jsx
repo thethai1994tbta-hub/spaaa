@@ -19,6 +19,7 @@ export default function Payment() {
   const [staffList, setStaffList] = useState([]);
   const [servicesList, setServicesList] = useState([]);
   const [packagesList, setPackagesList] = useState([]);
+  const [inventoryList, setInventoryList] = useState([]);
   const [transactions, setTransactions] = useState([]);
 
   // Current transaction
@@ -44,11 +45,12 @@ export default function Payment() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [custRes, staffRes, svcRes, pkgRes, txRes] = await Promise.all([
+      const [custRes, staffRes, svcRes, pkgRes, invRes, txRes] = await Promise.all([
         invoke('db:customers:getAll'),
         invoke('db:staff:getAll'),
         invoke('db:services:getAll'),
         invoke('db:packages:getAll'),
+        invoke('db:inventory:getAll'),
         invoke('db:transactions:getAll'),
       ]);
       setCustomers(custRes.data || custRes || []);
@@ -57,6 +59,8 @@ export default function Payment() {
       setServicesList(svcs.filter(s => s.active !== false));
       const pkgs = pkgRes.data || pkgRes || [];
       setPackagesList(pkgs.filter(p => p.status !== 'inactive'));
+      const inv = invRes.data || invRes || [];
+      setInventoryList(inv.filter(i => (i.quantity || 0) > 0));
       setTransactions(txRes.data || txRes || []);
     } catch (error) {
       console.error('[Payment] Load error:', error);
@@ -92,6 +96,22 @@ export default function Payment() {
       price: Number(pkg.price) || 0,
       quantity: 1,
       sessions: pkg.sessions || 1,
+      staffId: null,
+      staffName: '',
+    }]);
+  };
+
+  const addProductToCart = (productId) => {
+    const product = inventoryList.find(p => p.id === productId);
+    if (!product) return;
+    setCartItems(prev => [...prev, {
+      key: Date.now(),
+      type: 'product',
+      id: product.id,
+      name: product.name,
+      price: Number(product.price) || 0,
+      quantity: 1,
+      maxQuantity: product.quantity || 999,
       staffId: null,
       staffName: '',
     }]);
@@ -164,7 +184,7 @@ export default function Payment() {
         discount_type: discountType,
         amount: total,
         payment_method: paymentMethod,
-        transaction_type: cartItems.some(i => i.type === 'package') ? 'package' : 'service',
+        transaction_type: cartItems.some(i => i.type === 'package') ? 'package' : cartItems.some(i => i.type === 'product') ? 'mixed' : 'service',
         commission_amount: totalCommission,
         points_used: pointsUsed,
         points_earned: pointsEarned,
@@ -253,6 +273,7 @@ export default function Payment() {
       render: (name, record) => (
         <span>
           {record.type === 'package' && <Tag color="purple">Gói</Tag>}
+          {record.type === 'product' && <Tag color="green">SP</Tag>}
           {name}
         </span>
       ),
@@ -287,7 +308,7 @@ export default function Payment() {
       render: (_, record) => (
         <InputNumber
           min={1}
-          max={10}
+          max={record.maxQuantity || 10}
           size="small"
           value={record.quantity}
           onChange={(v) => updateCartItem(record.key, 'quantity', v || 1)}
@@ -468,6 +489,20 @@ export default function Payment() {
                             onChange={addPackageToCart}
                             options={packagesList.map(p => ({
                               label: `${p.name} — ${Number(p.price || 0).toLocaleString('vi-VN')}₫ (${p.sessions} buổi)`,
+                              value: p.id,
+                            }))}
+                          />
+                        </Col>
+                        <Col flex="1">
+                          <Select
+                            placeholder="+ Thêm sản phẩm"
+                            showSearch
+                            optionFilterProp="label"
+                            style={{ width: '100%' }}
+                            value={null}
+                            onChange={addProductToCart}
+                            options={inventoryList.map(p => ({
+                              label: `${p.name} — ${Number(p.price || 0).toLocaleString('vi-VN')}₫ (Kho: ${p.quantity || 0})`,
                               value: p.id,
                             }))}
                           />
