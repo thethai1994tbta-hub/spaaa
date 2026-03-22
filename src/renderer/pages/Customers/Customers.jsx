@@ -8,6 +8,8 @@ export default function Customers() {
   const { invoke } = useAPI();
   const [customers, setCustomers] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +30,8 @@ export default function Customers() {
 
   useEffect(() => {
     loadCustomers();
+    loadStaffList();
+    loadServicesList();
     if (activeTab === 'bookings') {
       loadBookings();
     }
@@ -64,6 +68,26 @@ export default function Customers() {
       message.error('Lỗi tải đặt lịch: ' + error.message);
     } finally {
       setBookingsLoading(false);
+    }
+  };
+
+  const loadStaffList = async () => {
+    try {
+      const result = await invoke('db:staff:getAll');
+      const data = result.data || result || [];
+      setStaffList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('[Customers] Error loading staff:', error);
+    }
+  };
+
+  const loadServicesList = async () => {
+    try {
+      const result = await invoke('db:services:getAll');
+      const data = result.data || result || [];
+      setServicesList(Array.isArray(data) ? data.filter(s => s.active !== false) : []);
+    } catch (error) {
+      console.error('[Customers] Error loading services:', error);
     }
   };
 
@@ -133,10 +157,16 @@ export default function Customers() {
 
   const handleAddBooking = async (values) => {
     try {
+      const customer = customers.find(c => c.id === values.customer_id);
+      const staff = staffList.find(s => s.id === values.staff_id);
+      const service = servicesList.find(s => s.id === values.service_id);
       await invoke('db:bookings:add', {
         customer_id: values.customer_id,
-        staff_id: values.staff_id,
-        service_id: values.service_id,
+        customer_name: customer?.name || '',
+        staff_id: values.staff_id || '',
+        staff_name: staff?.name || '',
+        service_id: values.service_id || '',
+        service_name: service?.name || '',
         booking_date: dayjs(values.booking_date).toISOString(),
         status: values.status || 'pending',
         notes: values.notes || '',
@@ -152,10 +182,16 @@ export default function Customers() {
 
   const handleEditBooking = async (values) => {
     try {
+      const customer = customers.find(c => c.id === values.customer_id);
+      const staff = staffList.find(s => s.id === values.staff_id);
+      const service = servicesList.find(s => s.id === values.service_id);
       await invoke('db:bookings:update', selectedBooking.id, {
         customer_id: values.customer_id,
-        staff_id: values.staff_id,
-        service_id: values.service_id,
+        customer_name: customer?.name || '',
+        staff_id: values.staff_id || '',
+        staff_name: staff?.name || '',
+        service_id: values.service_id || '',
+        service_name: service?.name || '',
         booking_date: dayjs(values.booking_date).toISOString(),
         status: values.status || 'pending',
         notes: values.notes || '',
@@ -303,27 +339,47 @@ export default function Customers() {
     },
   ];
 
-  const filteredBookings = bookings.filter(booking =>
-    (customers.find(c => c.id === booking.customerId)?.name || '').toLowerCase().includes(bookingSearchText.toLowerCase())
-  );
+  const filteredBookings = bookings.filter(booking => {
+    const search = bookingSearchText.toLowerCase();
+    const customerName = (booking.customer_name || customers.find(c => c.id === booking.customer_id)?.name || '').toLowerCase();
+    const staffName = (booking.staff_name || staffList.find(s => s.id === booking.staff_id)?.name || '').toLowerCase();
+    const serviceName = (booking.service_name || servicesList.find(s => s.id === booking.service_id)?.name || '').toLowerCase();
+    return customerName.includes(search) || staffName.includes(search) || serviceName.includes(search);
+  });
 
   const bookingColumns = [
     {
       title: 'Khách Hàng',
-      dataIndex: 'customerId',
-      key: 'customerId',
+      key: 'customer',
       width: 150,
-      render: (customerId) => {
-        const customer = customers.find(c => c.id === customerId);
-        return customer?.name || '-';
+      render: (_, record) => {
+        return record.customer_name || customers.find(c => c.id === record.customer_id)?.name || '-';
+      },
+    },
+    {
+      title: 'Nhân Viên',
+      key: 'staff',
+      width: 130,
+      render: (_, record) => {
+        return record.staff_name || staffList.find(s => s.id === record.staff_id)?.name || '-';
+      },
+    },
+    {
+      title: 'Dịch Vụ',
+      key: 'service',
+      width: 150,
+      render: (_, record) => {
+        return record.service_name || servicesList.find(s => s.id === record.service_id)?.name || '-';
       },
     },
     {
       title: 'Ngày Đặt',
-      dataIndex: 'bookingDate',
       key: 'bookingDate',
       width: 150,
-      render: (date) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
+      render: (_, record) => {
+        const date = record.booking_date || record.bookingDate;
+        return date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-';
+      },
     },
     {
       title: 'Trạng Thái',
@@ -744,14 +800,26 @@ export default function Customers() {
             label="Nhân Viên"
             name="staff_id"
           >
-            <Input placeholder="ID nhân viên" />
+            <Select
+              placeholder="Chọn nhân viên"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={staffList.map(s => ({ label: s.name, value: s.id }))}
+            />
           </Form.Item>
 
           <Form.Item
             label="Dịch Vụ"
             name="service_id"
           >
-            <Input placeholder="ID dịch vụ" />
+            <Select
+              placeholder="Chọn dịch vụ"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={servicesList.map(s => ({ label: `${s.name}${s.price ? ` - ${Number(s.price).toLocaleString('vi-VN')}₫` : ''}`, value: s.id }))}
+            />
           </Form.Item>
 
           <Form.Item
