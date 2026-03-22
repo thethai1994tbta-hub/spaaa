@@ -275,6 +275,7 @@ function setupFirebaseIPC() {
       ...(data.checkOutTime && { checkOutTime: new Date(data.checkOutTime) }),
       ...(data.hoursWorked !== undefined && { hoursWorked: data.hoursWorked }),
       ...(data.status && { status: data.status }),
+      ...(data.deleted !== undefined && { deleted: data.deleted }),
     });
   });
 
