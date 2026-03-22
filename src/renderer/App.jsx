@@ -30,7 +30,22 @@ const App = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [spaName, setSpaName] = useState('SPA VIP');
   const { isUnlocked, lock, requireAuth } = useAuth();
+
+  useEffect(() => {
+    const loadSpaName = async () => {
+      try {
+        const ipc = window.electron || window.ipc;
+        if (!ipc) return;
+        const result = await ipc.invoke('db:settings:get', 'spa');
+        if (result.success && result.data?.name) {
+          setSpaName(result.data.name);
+        }
+      } catch {}
+    };
+    loadSpaName();
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
@@ -68,7 +83,7 @@ const App = () => {
                 background: isDarkMode ? 'rgba(255,192,203,0.08)' : 'rgba(255,105,180,0.05)',
               }}
             >
-              <h2 style={{ color: '#ff69b4', margin: 0, fontSize: '24px', fontWeight: '700' }}>SPA VIP</h2>
+              <h2 style={{ color: '#ff69b4', margin: 0, fontSize: '24px', fontWeight: '700' }}>{spaName}</h2>
               <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>Quản Lý Chuyên Nghiệp</p>
             </div>
             <Menu
@@ -163,7 +178,7 @@ const App = () => {
                     fontWeight: '700',
                   }}
                 >
-                  Hệ Thống Quản Lý SPA VIP
+                  Hệ Thống Quản Lý {spaName}
                 </div>
               </div>
               <Button
@@ -209,7 +224,7 @@ const App = () => {
               {currentPage === 'payment' && <Payment />}
               {currentPage === 'inventory' && <Inventory />}
               {currentPage === 'reports' && <Reports />}
-              {currentPage === 'settings' && <Settings />}
+              {currentPage === 'settings' && <Settings onSpaNameChange={setSpaName} />}
             </Content>
           </Layout>
         </Layout>

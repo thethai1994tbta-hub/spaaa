@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 
-export default function Settings() {
+export default function Settings({ onSpaNameChange }) {
   const { invoke } = useAPI();
   const [spaForm] = Form.useForm();
   const [bankForm] = Form.useForm();
@@ -94,6 +94,9 @@ export default function Settings() {
       await invoke('db:settings:set', 'spa', values);
       message.success('Lưu thông tin spa thành công');
       setSettings(prev => ({ ...prev, spa: values }));
+      if (onSpaNameChange && values.name) {
+        onSpaNameChange(values.name);
+      }
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     } finally {
