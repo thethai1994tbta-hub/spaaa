@@ -143,12 +143,13 @@ export default function Payment() {
     }
 
     try {
-      const customer = customers.find(c => c.id === selectedCustomer);
-      const pointsEarned = Math.floor(total / 10000); // 10,000 VND = 1 point
+      const isWalkIn = selectedCustomer === 'walk-in';
+      const customer = isWalkIn ? null : customers.find(c => c.id === selectedCustomer);
+      const pointsEarned = isWalkIn ? 0 : Math.floor(total / 10000); // 10,000 VND = 1 point
 
       const txData = {
-        customer_id: selectedCustomer,
-        customer_name: customer?.name || '',
+        customer_id: isWalkIn ? null : selectedCustomer,
+        customer_name: isWalkIn ? 'Khách Vãng Lai' : (customer?.name || ''),
         items: cartItems.map(item => ({
           type: item.type,
           id: item.id,
@@ -184,8 +185,8 @@ export default function Payment() {
       const result = await invoke('db:transactions:add', txData);
 
       if (result.success || result.id) {
-        // Update customer points
-        if (customer) {
+        // Update customer points (skip walk-in)
+        if (customer && !isWalkIn) {
           const newPoints = (customer.points || 0) - pointsUsed + pointsEarned;
           await invoke('db:customers:update', customer.id, { points: newPoints });
         }
@@ -217,7 +218,7 @@ export default function Payment() {
           id: result.id,
           pointsEarned,
           createdAt: new Date().toISOString(),
-          customerPhone: customer?.phone || '',
+          customerPhone: isWalkIn ? '' : (customer?.phone || ''),
         });
 
         message.success('Thanh toán thành công!');
@@ -398,24 +399,43 @@ export default function Payment() {
                   <Col xs={24} lg={15}>
                     {/* Customer select */}
                     <Card size="small" style={{ marginBottom: 16 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 8 }}>1. Chọn Khách Hàng</div>
-                      <Select
-                        placeholder="Tìm và chọn khách hàng..."
-                        showSearch
-                        allowClear
-                        optionFilterProp="label"
-                        style={{ width: '100%' }}
-                        value={selectedCustomer}
-                        onChange={setSelectedCustomer}
-                        options={customers.map(c => ({
-                          label: `${c.name}${c.phone ? ` — ${c.phone}` : ''}`,
-                          value: c.id,
-                        }))}
-                      />
-                      {selectedCustomerData && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#595959' }}>
-                          <Tag color="gold">Điểm: {selectedCustomerData.points || 0}</Tag>
-                          {selectedCustomerData.phone && <span>SĐT: {selectedCustomerData.phone}</span>}
+                      <div style={{ fontWeight: 600, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>1. Chọn Khách Hàng</span>
+                        <Button
+                          size="small"
+                          type={selectedCustomer === 'walk-in' ? 'primary' : 'default'}
+                          onClick={() => setSelectedCustomer(selectedCustomer === 'walk-in' ? null : 'walk-in')}
+                          style={selectedCustomer === 'walk-in' ? { background: '#ff69b4', borderColor: '#ff69b4' } : {}}
+                        >
+                          Khách Vãng Lai
+                        </Button>
+                      </div>
+                      {selectedCustomer !== 'walk-in' ? (
+                        <>
+                          <Select
+                            placeholder="Tìm và chọn khách hàng..."
+                            showSearch
+                            allowClear
+                            optionFilterProp="label"
+                            style={{ width: '100%' }}
+                            value={selectedCustomer}
+                            onChange={setSelectedCustomer}
+                            options={customers.map(c => ({
+                              label: `${c.name}${c.phone ? ` — ${c.phone}` : ''}`,
+                              value: c.id,
+                            }))}
+                          />
+                          {selectedCustomerData && (
+                            <div style={{ marginTop: 8, fontSize: 12, color: '#595959' }}>
+                              <Tag color="gold">Điểm: {selectedCustomerData.points || 0}</Tag>
+                              {selectedCustomerData.phone && <span>SĐT: {selectedCustomerData.phone}</span>}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ padding: '8px 0', fontSize: 13 }}>
+                          <Tag color="orange">Khách Vãng Lai</Tag>
+                          <span style={{ color: '#888' }}>— Không tích điểm</span>
                         </div>
                       )}
                     </Card>
