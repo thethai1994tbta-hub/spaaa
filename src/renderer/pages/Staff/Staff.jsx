@@ -41,7 +41,7 @@ export default function Staff() {
 
   const loadAttendanceRecords = async (staffId) => {
     try {
-      const result = await invoke('db:query', 'ATTENDANCE', [
+      const result = await invoke('db:query', 'attendance', [
         { field: 'staffId', operator: '==', value: staffId }
       ]);
       setAttendanceRecords((result.data || []).sort((a, b) => new Date(b.date) - new Date(a.date)));
