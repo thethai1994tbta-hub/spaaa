@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge } from 'antd';
+import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs } from 'antd';
 import { CalendarOutlined, ClockCircleOutlined, BellOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 import dayjs from 'dayjs';
@@ -149,101 +149,107 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* Today's reminders */}
-      {todayBookings.length > 0 && (
-        <Card
-          title={
-            <span>
-              <BellOutlined style={{ color: '#ff69b4', marginRight: 8 }} />
-              Nhắc Hẹn Hôm Nay ({todayBookings.length})
-            </span>
-          }
-          style={{ marginBottom: 16, borderLeft: '3px solid #ff69b4' }}
-          size="small"
-        >
-          <Row gutter={[12, 12]}>
-            {todayBookings.map((b, i) => {
-              const d = getBookingDate(b);
-              const diffMinutes = d ? d.diff(now, 'minute') : 0;
-              const isUrgent = diffMinutes >= 0 && diffMinutes <= 60;
-              const isPast = diffMinutes < 0;
-              return (
-                <Col xs={24} sm={12} lg={8} key={b.id || i}>
-                  <Card
-                    size="small"
-                    style={{
-                      background: isPast ? '#fff1f0' : isUrgent ? '#fff7e6' : '#f6ffed',
-                      border: `1px solid ${isPast ? '#ffa39e' : isUrgent ? '#ffd591' : '#b7eb8f'}`,
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      {b.customer_name || 'Khách hàng'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#595959' }}>
-                      {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
-                      {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
-                      <div style={{ fontWeight: 500, marginTop: 4 }}>
-                        {d ? d.format('HH:mm') : '-'}
-                        {' '}{getReminderTag(b)}
-                      </div>
-                    </div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </Card>
-      )}
-
-      {/* Tomorrow preview */}
-      {tomorrowBookings.length > 0 && (
-        <Card
-          title={
-            <span>
-              <CalendarOutlined style={{ color: '#1890ff', marginRight: 8 }} />
-              Lịch Hẹn Ngày Mai ({tomorrowBookings.length})
-            </span>
-          }
-          style={{ marginBottom: 16, borderLeft: '3px solid #1890ff' }}
-          size="small"
-        >
-          <Row gutter={[12, 12]}>
-            {tomorrowBookings.map((b, i) => {
-              const d = getBookingDate(b);
-              return (
-                <Col xs={24} sm={12} lg={8} key={b.id || i}>
-                  <Card size="small" style={{ background: '#e6f7ff', border: '1px solid #91d5ff' }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      {b.customer_name || 'Khách hàng'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#595959' }}>
-                      {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
-                      {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
-                      <div style={{ fontWeight: 500, marginTop: 4 }}>
-                        {d ? d.format('HH:mm') : '-'}
-                      </div>
-                    </div>
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        </Card>
-      )}
-
-      {/* Full upcoming list */}
-      <Card title="Lịch Hẹn Sắp Tới">
-        {upcomingBookings.length > 0 ? (
-          <Table
-            dataSource={upcomingBookings.slice(0, 15).map((b, i) => ({ ...b, key: b.id || i }))}
-            columns={bookingColumns}
-            pagination={false}
-            size="small"
-            scroll={{ x: 800 }}
-          />
-        ) : (
-          <Empty description="Không có lịch hẹn" />
-        )}
+      <Card title="Lịch Hẹn">
+        <Tabs
+          defaultActiveKey="today"
+          items={[
+            {
+              key: 'today',
+              label: (
+                <Badge count={todayBookings.length} size="small" offset={[8, -2]} color="#ff69b4">
+                  <span><BellOutlined /> Hôm Nay</span>
+                </Badge>
+              ),
+              children: todayBookings.length > 0 ? (
+                <Row gutter={[12, 12]}>
+                  {todayBookings.map((b, i) => {
+                    const d = getBookingDate(b);
+                    const diffMinutes = d ? d.diff(now, 'minute') : 0;
+                    const isUrgent = diffMinutes >= 0 && diffMinutes <= 60;
+                    const isPast = diffMinutes < 0;
+                    return (
+                      <Col xs={24} sm={12} lg={8} key={b.id || i}>
+                        <Card
+                          size="small"
+                          style={{
+                            background: isPast ? '#fff1f0' : isUrgent ? '#fff7e6' : '#f6ffed',
+                            border: `1px solid ${isPast ? '#ffa39e' : isUrgent ? '#ffd591' : '#b7eb8f'}`,
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                            {b.customer_name || 'Khách hàng'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#595959' }}>
+                            {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
+                            {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
+                            <div style={{ fontWeight: 500, marginTop: 4 }}>
+                              {d ? d.format('HH:mm') : '-'}
+                              {' '}{getReminderTag(b)}
+                            </div>
+                          </div>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              ) : (
+                <Empty description="Không có lịch hẹn hôm nay" />
+              ),
+            },
+            {
+              key: 'tomorrow',
+              label: (
+                <Badge count={tomorrowBookings.length} size="small" offset={[8, -2]} color="#1890ff">
+                  <span><CalendarOutlined /> Ngày Mai</span>
+                </Badge>
+              ),
+              children: tomorrowBookings.length > 0 ? (
+                <Row gutter={[12, 12]}>
+                  {tomorrowBookings.map((b, i) => {
+                    const d = getBookingDate(b);
+                    return (
+                      <Col xs={24} sm={12} lg={8} key={b.id || i}>
+                        <Card size="small" style={{ background: '#e6f7ff', border: '1px solid #91d5ff' }}>
+                          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                            {b.customer_name || 'Khách hàng'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#595959' }}>
+                            {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
+                            {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
+                            <div style={{ fontWeight: 500, marginTop: 4 }}>
+                              {d ? d.format('HH:mm') : '-'}
+                            </div>
+                          </div>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              ) : (
+                <Empty description="Không có lịch hẹn ngày mai" />
+              ),
+            },
+            {
+              key: 'upcoming',
+              label: (
+                <Badge count={upcomingBookings.length} size="small" offset={[8, -2]}>
+                  <span><ClockCircleOutlined /> Tất Cả Sắp Tới</span>
+                </Badge>
+              ),
+              children: upcomingBookings.length > 0 ? (
+                <Table
+                  dataSource={upcomingBookings.slice(0, 15).map((b, i) => ({ ...b, key: b.id || i }))}
+                  columns={bookingColumns}
+                  pagination={false}
+                  size="small"
+                  scroll={{ x: 800 }}
+                />
+              ) : (
+                <Empty description="Không có lịch hẹn" />
+              ),
+            },
+          ]}
+        />
       </Card>
     </div>
   );
