@@ -220,27 +220,6 @@ export default function Settings({ onSpaNameChange }) {
     }
   };
 
-  const handleResetAttendance = async () => {
-    if (isLocked) { setShowPasswordModal(true); return; }
-    setResetting(true);
-    try {
-      const result = await invoke('db:query', 'attendance', []);
-      const items = result.data || result || [];
-      let deleted = 0;
-      for (const item of items) {
-        try {
-          await invoke('db:attendance:update', item.id, { deleted: true, status: 'deleted' });
-          deleted++;
-        } catch {}
-      }
-      message.success(`Đã xóa ${deleted} chấm công`);
-    } catch (error) {
-      message.error('Lỗi: ' + error.message);
-    } finally {
-      setResetting(false);
-    }
-  };
-
   // ============ QR PREVIEW ============
   const bankValues = bankForm.getFieldsValue();
   const qrPreviewUrl = bankValues.bankId && bankValues.accountNo

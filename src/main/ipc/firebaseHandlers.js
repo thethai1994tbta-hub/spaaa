@@ -60,6 +60,7 @@ function setupFirebaseIPC() {
       description: service.description || null,
       steps: service.steps || null,
       commissionRate: service.commissionRate || 0,
+      active: service.active !== undefined ? service.active : true,
     });
   });
 
@@ -294,6 +295,8 @@ function setupFirebaseIPC() {
       itemName: movement.itemName,
       date: new Date(movement.date),
       quantity: movement.quantity,
+      unitCost: movement.unitCost || 0,
+      totalCost: movement.totalCost || 0,
       notes: movement.notes || null,
       type: movement.type || 'import',
       user: movement.user || 'System',
