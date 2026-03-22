@@ -7,6 +7,7 @@ import {
 import {
   PlusOutlined, DeleteOutlined, ShoppingCartOutlined,
   PrinterOutlined, CheckCircleOutlined, SearchOutlined,
+  WalletOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
@@ -49,6 +50,24 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const [lastReceipt, setLastReceipt] = useState(null);
   const [activeTab, setActiveTab] = useState('new');
   const [historySearch, setHistorySearch] = useState('');
+
+  // Expenses
+  const [expenseForm] = Form.useForm();
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expenseFilter, setExpenseFilter] = useState('all');
+
+  const EXPENSE_CATEGORIES = [
+    { label: 'Tiền Điện', value: 'electricity', icon: '⚡' },
+    { label: 'Tiền Nước', value: 'water', icon: '💧' },
+    { label: 'Tiền Thuê Mặt Bằng', value: 'rent', icon: '🏠' },
+    { label: 'Internet / Wifi', value: 'internet', icon: '📡' },
+    { label: 'Lương Nhân Viên', value: 'salary', icon: '👤' },
+    { label: 'Vật Tư / Nguyên Liệu', value: 'supplies', icon: '📦' },
+    { label: 'Bảo Trì / Sửa Chữa', value: 'maintenance', icon: '🔧' },
+    { label: 'Quảng Cáo / Marketing', value: 'marketing', icon: '📢' },
+    { label: 'Thuế / Phí', value: 'tax', icon: '📋' },
+    { label: 'Khác', value: 'other', icon: '📌' },
+  ];
 
   useEffect(() => {
     loadData();
@@ -326,6 +345,45 @@ export default function Payment({ pendingBooking, onClearPending }) {
     setLinkedBookingId(null);
   };
 
+  // ============ EXPENSE LOGIC ============
+  const handleAddExpense = async (values) => {
+    try {
+      const category = EXPENSE_CATEGORIES.find(c => c.value === values.category);
+      await invoke('db:transactions:add', {
+        transaction_type: 'expense',
+        expense_category: values.category,
+        expense_category_label: category?.label || values.category,
+        amount: -(Number(values.amount) || 0),
+        notes: values.notes || '',
+        payment_method: values.payment_method || 'cash',
+        date: values.date ? dayjs(values.date).toISOString() : new Date().toISOString(),
+      });
+      message.success('Thêm chi phí thành công');
+      expenseForm.resetFields();
+      setIsExpenseModalOpen(false);
+      loadData();
+    } catch (error) {
+      message.error('Lỗi thêm chi phí: ' + error.message);
+    }
+  };
+
+  const expenseTransactions = transactions.filter(t => {
+    const type = t.transactionType || t.transaction_type;
+    return type === 'expense';
+  });
+
+  const filteredExpenses = expenseFilter === 'all'
+    ? expenseTransactions
+    : expenseTransactions.filter(t => (t.expenseCategory || t.expense_category) === expenseFilter);
+
+  const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+
+  const expenseByCategory = {};
+  expenseTransactions.forEach(t => {
+    const cat = t.expenseCategory || t.expense_category || 'other';
+    expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Math.abs(Number(t.amount) || 0);
+  });
+
   // ============ CART TABLE ============
   const cartColumns = [
     {
@@ -404,9 +462,10 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   // ============ HISTORY ============
   const filteredTransactions = transactions.filter(t => {
-    if (t.transactionType === 'commission') return false;
+    const type = t.transactionType || t.transaction_type;
+    if (type === 'commission' || type === 'expense') return false;
     const search = historySearch.toLowerCase();
-    return (t.customerName || '').toLowerCase().includes(search) ||
+    return (t.customerName || t.customer_name || '').toLowerCase().includes(search) ||
       (t.notes || '').toLowerCase().includes(search);
   });
 
@@ -765,9 +824,223 @@ export default function Payment({ pendingBooking, onClearPending }) {
                 </div>
               ),
             },
+            {
+              key: 'expenses',
+              label: <span><WalletOutlined /> Chi Phí Sinh Hoạt</span>,
+              children: (
+                <div>
+                  {/* Summary */}
+                  <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+                    <Col xs={24} sm={8}>
+                      <Card size="small" style={{ borderLeft: '4px solid #f5222d' }}>
+                        <Statistic
+                          title="Tổng Chi Phí"
+                          value={totalExpenses}
+                          suffix="₫"
+                          valueStyle={{ color: '#f5222d', fontWeight: 700 }}
+                          formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Card size="small" style={{ borderLeft: '4px solid #597ef7' }}>
+                        <Statistic
+                          title="Số Khoản Chi"
+                          value={expenseTransactions.length}
+                          valueStyle={{ color: '#597ef7', fontWeight: 700 }}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Card size="small" style={{ borderLeft: '4px solid #52c41a' }}>
+                        <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Theo danh mục</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {Object.entries(expenseByCategory).map(([cat, amount]) => {
+                            const category = EXPENSE_CATEGORIES.find(c => c.value === cat);
+                            return (
+                              <Tag key={cat} color="default" style={{ fontSize: 11 }}>
+                                {category?.icon} {category?.label || cat}: {Number(amount).toLocaleString('vi-VN')}₫
+                              </Tag>
+                            );
+                          })}
+                        </div>
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  {/* Actions */}
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                    <Select
+                      value={expenseFilter}
+                      onChange={setExpenseFilter}
+                      style={{ width: 220 }}
+                      options={[
+                        { label: 'Tất cả danh mục', value: 'all' },
+                        ...EXPENSE_CATEGORIES.map(c => ({ label: `${c.icon} ${c.label}`, value: c.value })),
+                      ]}
+                    />
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => {
+                        expenseForm.resetFields();
+                        expenseForm.setFieldsValue({ date: dayjs(), payment_method: 'cash' });
+                        setIsExpenseModalOpen(true);
+                      }}
+                      style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                    >
+                      Thêm Chi Phí
+                    </Button>
+                  </div>
+
+                  {/* Expense Table */}
+                  <Table
+                    columns={[
+                      {
+                        title: 'Ngày', key: 'date', width: 140,
+                        render: (_, r) => {
+                          const d = r.date || r.createdAt;
+                          return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
+                        },
+                        sorter: (a, b) => {
+                          const da = dayjs(a.date || a.createdAt);
+                          const db = dayjs(b.date || b.createdAt);
+                          return da.valueOf() - db.valueOf();
+                        },
+                        defaultSortOrder: 'descend',
+                      },
+                      {
+                        title: 'Danh Mục', key: 'category', width: 180,
+                        render: (_, r) => {
+                          const cat = r.expenseCategory || r.expense_category || 'other';
+                          const category = EXPENSE_CATEGORIES.find(c => c.value === cat);
+                          return (
+                            <Tag color="red">
+                              {category?.icon} {category?.label || cat}
+                            </Tag>
+                          );
+                        },
+                        filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
+                        onFilter: (value, record) => (record.expenseCategory || record.expense_category) === value,
+                      },
+                      {
+                        title: 'Số Tiền', key: 'amount', width: 140,
+                        render: (_, r) => (
+                          <span style={{ color: '#f5222d', fontWeight: 600 }}>
+                            -{Math.abs(Number(r.amount) || 0).toLocaleString('vi-VN')}₫
+                          </span>
+                        ),
+                        sorter: (a, b) => Math.abs(Number(a.amount) || 0) - Math.abs(Number(b.amount) || 0),
+                      },
+                      {
+                        title: 'Phương Thức', key: 'method', width: 120,
+                        render: (_, r) => {
+                          const m = r.paymentMethod || r.payment_method;
+                          const map = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ' };
+                          return map[m] || m || '-';
+                        },
+                      },
+                      {
+                        title: 'Ghi Chú', dataIndex: 'notes', key: 'notes',
+                        render: (v) => v || '-', ellipsis: true,
+                      },
+                      {
+                        title: '', key: 'action', width: 50,
+                        render: (_, r) => (
+                          <Popconfirm
+                            title="Xóa khoản chi này?"
+                            onConfirm={async () => {
+                              try {
+                                await invoke('db:transactions:update', r.id, { deleted: true, transaction_type: 'expense_deleted' });
+                                message.success('Đã xóa');
+                                loadData();
+                              } catch (error) {
+                                message.error('Lỗi: ' + error.message);
+                              }
+                            }}
+                            okText="Có"
+                            cancelText="Không"
+                          >
+                            <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+                          </Popconfirm>
+                        ),
+                      },
+                    ]}
+                    dataSource={filteredExpenses.map((t, i) => ({ ...t, key: t.id || i }))}
+                    pagination={{ pageSize: 15, showTotal: (total) => `Tổng ${total} khoản chi` }}
+                    size="small"
+                    scroll={{ x: 700 }}
+                    locale={{ emptyText: 'Chưa có chi phí nào' }}
+                  />
+                </div>
+              ),
+            },
           ]}
         />
       </Card>
+
+      {/* Expense Modal */}
+      <Modal
+        title="Thêm Chi Phí Sinh Hoạt"
+        open={isExpenseModalOpen}
+        onOk={() => expenseForm.submit()}
+        onCancel={() => {
+          setIsExpenseModalOpen(false);
+          expenseForm.resetFields();
+        }}
+        okText="Thêm"
+        cancelText="Hủy"
+      >
+        <Form
+          form={expenseForm}
+          layout="vertical"
+          onFinish={handleAddExpense}
+          initialValues={{ payment_method: 'cash', date: dayjs() }}
+        >
+          <Form.Item
+            label="Danh Mục"
+            name="category"
+            rules={[{ required: true, message: 'Vui lòng chọn danh mục' }]}
+          >
+            <Select
+              placeholder="Chọn loại chi phí"
+              options={EXPENSE_CATEGORIES.map(c => ({
+                label: `${c.icon} ${c.label}`,
+                value: c.value,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Số Tiền (₫)"
+            name="amount"
+            rules={[{ required: true, message: 'Vui lòng nhập số tiền' }]}
+          >
+            <InputNumber
+              min={1000}
+              step={10000}
+              style={{ width: '100%' }}
+              formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={v => v.replace(/,/g, '')}
+              placeholder="Nhập số tiền"
+            />
+          </Form.Item>
+          <Form.Item label="Ngày" name="date">
+            <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item label="Phương Thức" name="payment_method">
+            <Select
+              options={[
+                { label: 'Tiền mặt', value: 'cash' },
+                { label: 'Chuyển khoản', value: 'transfer' },
+                { label: 'Thẻ', value: 'card' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="Ghi Chú" name="notes">
+            <Input.TextArea placeholder="Ghi chú chi tiết..." rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Receipt Modal */}
       <Modal
