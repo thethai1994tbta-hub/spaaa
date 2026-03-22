@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs } from 'antd';
-import { CalendarOutlined, ClockCircleOutlined, BellOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs, Button, message, Tooltip } from 'antd';
+import { CalendarOutlined, ClockCircleOutlined, BellOutlined, SendOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 import dayjs from 'dayjs';
 
@@ -8,6 +8,9 @@ export default function Dashboard() {
   const { invoke, loading } = useAPI();
   const [stats, setStats] = useState(null);
   const [bookings, setBookings] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [servicesList, setServicesList] = useState([]);
 
   useEffect(() => {
     loadDashboard();
@@ -15,13 +18,49 @@ export default function Dashboard() {
 
   const loadDashboard = async () => {
     try {
-      const result = await invoke('db:dashboard:getStats');
-      setStats(result.data || result);
-      const bookingsResult = await invoke('db:bookings:getAll');
-      setBookings(bookingsResult.data || bookingsResult || []);
+      const [statsRes, bookingsRes, customersRes, staffRes, servicesRes] = await Promise.all([
+        invoke('db:dashboard:getStats'),
+        invoke('db:bookings:getAll'),
+        invoke('db:customers:getAll'),
+        invoke('db:staff:getAll'),
+        invoke('db:services:getAll'),
+      ]);
+      setStats(statsRes.data || statsRes);
+      setBookings(bookingsRes.data || bookingsRes || []);
+      setCustomers(customersRes.data || customersRes || []);
+      setStaffList(staffRes.data || staffRes || []);
+      setServicesList(servicesRes.data || servicesRes || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     }
+  };
+
+  // Lookup name by ID (fallback for old bookings without stored names)
+  const getCustomerName = (b) => b.customer_name || customers.find(c => c.id === (b.customer_id || b.customerId))?.name || '-';
+  const getStaffName = (b) => b.staff_name || staffList.find(s => s.id === (b.staff_id || b.staffId))?.name || '';
+  const getServiceName = (b) => b.service_name || servicesList.find(s => s.id === (b.service_id || b.serviceId))?.name || '';
+
+  // Zalo reminder: open Zalo chat with pre-filled message
+  const sendZaloReminder = (booking) => {
+    const customer = customers.find(c => c.id === (booking.customer_id || booking.customerId));
+    const phone = customer?.phone;
+    if (!phone) {
+      message.warning('Khách hàng chưa có số điện thoại');
+      return;
+    }
+    const d = getBookingDate(booking);
+    const dateStr = d ? d.format('DD/MM/YYYY') : '';
+    const timeStr = d ? d.format('HH:mm') : '';
+    const serviceName = getServiceName(booking);
+    const text = `Xin chào ${getCustomerName(booking)}! Nhắc lịch hẹn spa ngày ${dateStr} lúc ${timeStr}${serviceName ? ` - Dịch vụ: ${serviceName}` : ''}. Xin cảm ơn!`;
+    // Format phone: remove leading 0, add 84 country code
+    let zaloPhone = phone.replace(/\s+/g, '');
+    if (zaloPhone.startsWith('0')) zaloPhone = '84' + zaloPhone.slice(1);
+    window.open(`https://zalo.me/${zaloPhone}`, '_blank');
+    // Copy message to clipboard for quick paste
+    navigator.clipboard.writeText(text).then(() => {
+      message.success('Đã copy tin nhắn nhắc hẹn — Dán vào Zalo');
+    });
   };
 
   // Categorize bookings
@@ -83,25 +122,38 @@ export default function Dashboard() {
       title: 'Nhắc Hẹn',
       key: 'reminder',
       width: 150,
-      render: (_, record) => getReminderTag(record),
+      render: (_, record) => (
+        <span>
+          {getReminderTag(record)}
+          <Tooltip title="Nhắc qua Zalo">
+            <Button
+              type="link"
+              size="small"
+              icon={<SendOutlined />}
+              onClick={() => sendZaloReminder(record)}
+              style={{ color: '#0068ff', padding: '0 4px' }}
+            />
+          </Tooltip>
+        </span>
+      ),
     },
     {
       title: 'Khách Hàng',
       key: 'customer',
       width: 140,
-      render: (_, record) => record.customer_name || '-',
+      render: (_, record) => getCustomerName(record),
     },
     {
       title: 'Dịch Vụ',
       key: 'service',
       width: 140,
-      render: (_, record) => record.service_name || '-',
+      render: (_, record) => getServiceName(record) || '-',
     },
     {
       title: 'Nhân Viên',
       key: 'staff',
       width: 130,
-      render: (_, record) => record.staff_name || '-',
+      render: (_, record) => getStaffName(record) || '-',
     },
     {
       title: 'Ngày Giờ',
@@ -176,12 +228,15 @@ export default function Dashboard() {
                             border: `1px solid ${isPast ? '#ffa39e' : isUrgent ? '#ffd591' : '#b7eb8f'}`,
                           }}
                         >
-                          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                            {b.customer_name || 'Khách hàng'}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 600 }}>{getCustomerName(b)}</span>
+                            <Tooltip title="Nhắc qua Zalo">
+                              <Button type="link" size="small" icon={<SendOutlined />} onClick={() => sendZaloReminder(b)} style={{ color: '#0068ff', padding: 0 }} />
+                            </Tooltip>
                           </div>
                           <div style={{ fontSize: 12, color: '#595959' }}>
-                            {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
-                            {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
+                            {getServiceName(b) && <div>Dịch vụ: {getServiceName(b)}</div>}
+                            {getStaffName(b) && <div>Nhân viên: {getStaffName(b)}</div>}
                             <div style={{ fontWeight: 500, marginTop: 4 }}>
                               {d ? d.format('HH:mm') : '-'}
                               {' '}{getReminderTag(b)}
@@ -210,12 +265,15 @@ export default function Dashboard() {
                     return (
                       <Col xs={24} sm={12} lg={8} key={b.id || i}>
                         <Card size="small" style={{ background: '#e6f7ff', border: '1px solid #91d5ff' }}>
-                          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                            {b.customer_name || 'Khách hàng'}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 600 }}>{getCustomerName(b)}</span>
+                            <Tooltip title="Nhắc qua Zalo">
+                              <Button type="link" size="small" icon={<SendOutlined />} onClick={() => sendZaloReminder(b)} style={{ color: '#0068ff', padding: 0 }} />
+                            </Tooltip>
                           </div>
                           <div style={{ fontSize: 12, color: '#595959' }}>
-                            {b.service_name && <div>Dịch vụ: {b.service_name}</div>}
-                            {b.staff_name && <div>Nhân viên: {b.staff_name}</div>}
+                            {getServiceName(b) && <div>Dịch vụ: {getServiceName(b)}</div>}
+                            {getStaffName(b) && <div>Nhân viên: {getStaffName(b)}</div>}
                             <div style={{ fontWeight: 500, marginTop: 4 }}>
                               {d ? d.format('HH:mm') : '-'}
                             </div>
