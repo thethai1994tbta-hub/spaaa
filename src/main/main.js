@@ -15,17 +15,43 @@ let mainWindow;
 let useFirebase = false;
 
 function createWindow() {
+  // Resolve preload path - handle both dev and prod
+  let preloadPath;
+  if (isDev) {
+    // In development: src/main/main.js -> ../../public/preload.js
+    preloadPath = path.resolve(__dirname, '../../public/preload.js');
+  } else {
+    // In production: app in dist folder
+    preloadPath = path.resolve(__dirname, '../../public/preload.js');
+  }
+
+  console.log('[APP] Preload path:', preloadPath);
+  console.log('[APP] File exists:', fs.existsSync(preloadPath));
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
     webPreferences: {
-      preload: path.join(__dirname, '../../public/preload.js'),
+      preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
     },
     icon: path.join(__dirname, '../../public/images/icon.ico'),
+  });
+
+  // Set Content Security Policy
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:"
+        ]
+      }
+    });
   });
 
   const url = isDev ? 'http://127.0.0.1:5173' : 'file://' + path.join(__dirname, '../../dist/index.html');

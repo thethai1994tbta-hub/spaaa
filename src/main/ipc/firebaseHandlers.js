@@ -212,6 +212,11 @@ function setupFirebaseIPC() {
     }
   });
 
+  // ==================== GENERIC QUERY ====================
+  ipcMain.handle('db:query', async (event, collection, conditions) => {
+    return query(collection, conditions);
+  });
+
   // ==================== APP SETTINGS ====================
   ipcMain.handle('db:settings:get', async (event, key) => {
     try {

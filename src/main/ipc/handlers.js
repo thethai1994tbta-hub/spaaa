@@ -175,6 +175,47 @@ function setupIPC() {
       return { success: false, error: error.message };
     }
   });
+
+  ipcMain.handle('db:query', async (event, table, conditions) => {
+    try {
+      let query = `SELECT * FROM ${table}`;
+      const params = [];
+
+      if (conditions && conditions.length > 0) {
+        const where = conditions.map(cond => {
+          if (cond.operator === '==') {
+            params.push(cond.value);
+            return `${cond.field} = ?`;
+          } else if (cond.operator === '>=') {
+            params.push(cond.value);
+            return `${cond.field} >= ?`;
+          } else if (cond.operator === '<=') {
+            params.push(cond.value);
+            return `${cond.field} <= ?`;
+          }
+          return '';
+        }).filter(w => w);
+
+        if (where.length > 0) {
+          query += ' WHERE ' + where.join(' AND ');
+        }
+      }
+
+      const data = await (params.length > 0
+        ? new Promise((resolve, reject) => {
+            getDatabase().all(query, params, (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows || []);
+            });
+          })
+        : allQuery(query)
+      );
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 module.exports = { setupIPC };

@@ -50,9 +50,48 @@ body {
   text-align: center;
 }
 
+/* Pink Theme */
+.ant-btn-primary {
+  background-color: #ff69b4 !important;
+  border-color: #ff69b4 !important;
+}
+
+.ant-btn-primary:hover,
+.ant-btn-primary:focus {
+  background-color: #ff1493 !important;
+  border-color: #ff1493 !important;
+}
+
+.ant-menu-item-selected {
+  color: #ff69b4 !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ff69b4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff1493;
+}
+
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #141414;
     color: rgba(255, 255, 255, 0.85);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #2a2a2a;
   }
 }
