@@ -208,8 +208,13 @@ function setupFirebaseIPC() {
         { field: 'createdAt', operator: '<=', value: todayEnd },
       ]);
 
+      const isIncomeTx = (tx) => {
+        const t = tx.transactionType || tx.transaction_type;
+        return !tx.deleted && t !== 'commission' && t !== 'expense' && t !== 'expense_deleted' && t !== 'deleted' && (tx.amount || 0) > 0;
+      };
+
       const todayRevenue = todayTxResult.success
-        ? todayTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        ? todayTxResult.data.filter(isIncomeTx).reduce((sum, tx) => sum + (tx.amount || 0), 0)
         : 0;
 
       // Get this month's transactions
@@ -222,7 +227,7 @@ function setupFirebaseIPC() {
       ]);
 
       const monthRevenue = monthTxResult.success
-        ? monthTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        ? monthTxResult.data.filter(isIncomeTx).reduce((sum, tx) => sum + (tx.amount || 0), 0)
         : 0;
 
       // Get today's bookings

@@ -42,7 +42,11 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
       setCustomers(customersRes.data || customersRes || []);
       setStaffList((staffRes.data || staffRes || []).filter(s => s.active !== false));
       setServicesList((servicesRes.data || servicesRes || []).filter(s => s.active !== false));
-      setTransactions(txRes.data || txRes || []);
+      const allTx = txRes.data || txRes || [];
+      setTransactions(allTx.filter(t => {
+        const type = t.transactionType || t.transaction_type;
+        return !t.deleted && type !== 'commission' && type !== 'expense' && type !== 'expense_deleted' && type !== 'deleted' && (t.amount || 0) > 0;
+      }));
       setInventory(invRes.data || invRes || []);
 
       // Load today's attendance
