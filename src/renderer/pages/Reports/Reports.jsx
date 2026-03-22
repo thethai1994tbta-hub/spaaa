@@ -67,11 +67,15 @@ export default function Reports() {
     }
   };
 
-  // Filter transactions by date range
+  // Filter transactions by date range (exclude deleted)
   const filteredTx = useMemo(() => {
-    if (!dateRange || dateRange.length < 2) return transactions;
+    const active = transactions.filter(t => {
+      const type = t.transactionType || t.transaction_type;
+      return type !== 'deleted' && !t.deleted;
+    });
+    if (!dateRange || dateRange.length < 2) return active;
     const [start, end] = dateRange;
-    return transactions.filter(t => {
+    return active.filter(t => {
       const d = parseDate(t.date || t.createdAt);
       return d && d.isBetween(start.startOf('day'), end.endOf('day'), null, '[]');
     });

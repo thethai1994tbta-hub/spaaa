@@ -465,7 +465,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
   // ============ HISTORY ============
   const filteredTransactions = transactions.filter(t => {
     const type = t.transactionType || t.transaction_type;
-    if (type === 'commission' || type === 'expense') return false;
+    if (type === 'commission' || type === 'expense' || type === 'deleted' || t.deleted) return false;
     const search = historySearch.toLowerCase();
     return (t.customerName || t.customer_name || '').toLowerCase().includes(search) ||
       (t.notes || '').toLowerCase().includes(search);
@@ -531,7 +531,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
           description="Hành động này không thể hoàn tác."
           onConfirm={guardAction(async () => {
             try {
-              await invoke('db:transactions:delete', r.id);
+              await invoke('db:transactions:update', r.id, { transaction_type: 'deleted', deleted: true });
               message.success('Đã xóa giao dịch');
               loadData();
             } catch (error) {
