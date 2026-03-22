@@ -11,6 +11,24 @@ import {
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
 
+// ============ CẤU HÌNH NGÂN HÀNG (thay đổi theo spa) ============
+const BANK_CONFIG = {
+  bankId: 'MB',              // Mã ngân hàng (MB, VCB, TCB, ACB, BIDV, VPB, ...)
+  accountNo: '0363288505',   // Số tài khoản
+  accountName: 'SPA VIP',    // Tên chủ tài khoản
+  template: 'compact2',       // Template QR: compact, compact2, qr_only, print
+};
+
+const getVietQRUrl = (amount, description) => {
+  const { bankId, accountNo, template } = BANK_CONFIG;
+  const params = new URLSearchParams({
+    amount: String(amount || 0),
+    addInfo: description || 'Thanh toan',
+    accountName: BANK_CONFIG.accountName,
+  });
+  return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?${params.toString()}`;
+};
+
 export default function Payment() {
   const { invoke } = useAPI();
 
@@ -623,6 +641,21 @@ export default function Payment() {
                         </Radio.Group>
                       </div>
 
+                      {/* QR preview for transfer */}
+                      {(paymentMethod === 'transfer' || paymentMethod === 'combined') && total > 0 && (
+                        <div style={{ textAlign: 'center', marginBottom: 12, padding: 8, background: '#f6ffed', borderRadius: 8, border: '1px solid #b7eb8f' }}>
+                          <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>QR Chuyển khoản</div>
+                          <img
+                            src={getVietQRUrl(total, `Thanh toan SPA VIP`)}
+                            alt="QR"
+                            style={{ width: 180, height: 'auto', borderRadius: 6 }}
+                          />
+                          <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+                            {BANK_CONFIG.bankId} — {BANK_CONFIG.accountNo}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Notes */}
                       <div style={{ marginBottom: 16 }}>
                         <Input.TextArea
@@ -767,6 +800,23 @@ export default function Payment() {
               <div style={{ fontSize: 12, color: '#52c41a', marginTop: 4 }}>
                 +{lastReceipt.pointsEarned} điểm tích lũy
               </div>
+            )}
+            {/* QR Code chuyển khoản */}
+            {(lastReceipt.payment_method === 'transfer' || lastReceipt.payment_method === 'combined') && (
+              <>
+                <Divider style={{ margin: '8px 0' }} />
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Quét mã QR để chuyển khoản</div>
+                  <img
+                    src={getVietQRUrl(lastReceipt.amount, `HD ${dayjs(lastReceipt.createdAt).format('DDMMYYHHmm')} ${lastReceipt.customer_name}`)}
+                    alt="QR Chuyển khoản"
+                    style={{ width: 250, height: 'auto', borderRadius: 8 }}
+                  />
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                    {BANK_CONFIG.bankId} — {BANK_CONFIG.accountNo} — {BANK_CONFIG.accountName}
+                  </div>
+                </div>
+              </>
             )}
             <Divider style={{ margin: '8px 0' }} />
             <div style={{ textAlign: 'center', fontSize: 12, color: '#888' }}>
