@@ -740,24 +740,40 @@ export default function Customers() {
                       columns={[
                         {
                           title: 'Ngày',
-                          dataIndex: 'date',
                           key: 'date',
-                          render: (text) => text || '-',
+                          width: 150,
+                          render: (_, record) => {
+                            const d = record.booking_date || record.bookingDate;
+                            return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
+                          },
                         },
                         {
                           title: 'Dịch Vụ',
-                          dataIndex: 'service',
                           key: 'service',
-                          render: (text) => text || '-',
+                          render: (_, record) => record.service_name || servicesList.find(s => s.id === (record.service_id || record.serviceId))?.name || '-',
+                        },
+                        {
+                          title: 'Nhân Viên',
+                          key: 'staff',
+                          render: (_, record) => record.staff_name || staffList.find(s => s.id === (record.staff_id || record.staffId))?.name || '-',
                         },
                         {
                           title: 'Trạng Thái',
                           dataIndex: 'status',
                           key: 'status',
+                          width: 110,
                           render: (status) => {
-                            const colors = { completed: '#52c41a', pending: '#faad14', cancelled: '#f5222d' };
-                            return <span style={{ color: colors[status] || '#666' }}>{status || '-'}</span>;
+                            const map = { pending: 'Chờ xử lý', confirmed: 'Xác nhận', completed: 'Hoàn thành', cancelled: 'Hủy' };
+                            const colors = { completed: '#52c41a', pending: '#faad14', confirmed: '#1890ff', cancelled: '#f5222d' };
+                            return <Tag color={colors[status]}>{map[status] || status || '-'}</Tag>;
                           },
+                        },
+                        {
+                          title: 'Ghi Chú',
+                          dataIndex: 'notes',
+                          key: 'notes',
+                          render: (text) => text || '-',
+                          ellipsis: true,
                         },
                       ]}
                       dataSource={customerBookings.map((b, i) => ({ ...b, key: b.id || i }))}
@@ -774,30 +790,50 @@ export default function Customers() {
                       columns={[
                         {
                           title: 'Ngày',
-                          dataIndex: 'date',
                           key: 'date',
-                          render: (text) => text || '-',
+                          width: 150,
+                          render: (_, record) => {
+                            const d = record.date || record.createdAt;
+                            return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
+                          },
                         },
                         {
                           title: 'Loại',
-                          dataIndex: 'type',
                           key: 'type',
-                          render: (text) => text || '-',
+                          width: 100,
+                          render: (_, record) => {
+                            const t = record.transactionType || record.transaction_type;
+                            const map = { service: 'Dịch vụ', package: 'Gói', product: 'Sản phẩm', mixed: 'Hỗn hợp' };
+                            const colors = { service: 'blue', package: 'purple', product: 'green', mixed: 'orange' };
+                            return <Tag color={colors[t]}>{map[t] || t || '-'}</Tag>;
+                          },
                         },
                         {
                           title: 'Số Tiền',
                           dataIndex: 'amount',
                           key: 'amount',
-                          render: (text) => text ? `${text.toLocaleString('vi-VN')} ₫` : '-',
+                          width: 130,
+                          render: (v) => v ? <span style={{ color: '#ff69b4', fontWeight: 600 }}>{Number(v).toLocaleString('vi-VN')}₫</span> : '-',
                         },
                         {
                           title: 'Phương Thức',
-                          dataIndex: 'method',
                           key: 'method',
+                          width: 120,
+                          render: (_, record) => {
+                            const m = record.paymentMethod || record.payment_method;
+                            const map = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ', combined: 'Kết hợp' };
+                            return map[m] || m || '-';
+                          },
+                        },
+                        {
+                          title: 'Ghi Chú',
+                          dataIndex: 'notes',
+                          key: 'notes',
                           render: (text) => text || '-',
+                          ellipsis: true,
                         },
                       ]}
-                      dataSource={customerTransactions.map((t, i) => ({ ...t, key: t.id || i }))}
+                      dataSource={customerTransactions.filter(t => (t.transactionType || t.transaction_type) !== 'commission').map((t, i) => ({ ...t, key: t.id || i }))}
                       pagination={false}
                       size="small"
                     />
