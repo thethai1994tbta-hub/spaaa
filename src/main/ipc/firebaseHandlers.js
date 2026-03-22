@@ -131,13 +131,24 @@ function setupFirebaseIPC() {
   ipcMain.handle('db:transactions:add', async (event, transaction) => {
     return addDocument(COLLECTIONS.TRANSACTIONS, {
       bookingId: transaction.booking_id || null,
-      customerId: transaction.customer_id,
+      customerId: transaction.customer_id || null,
+      customerName: transaction.customer_name || '',
       staffId: transaction.staff_id || null,
+      staffName: transaction.staff_name || '',
+      items: transaction.items || [],
+      subtotal: transaction.subtotal || 0,
+      discount: transaction.discount || 0,
+      discountType: transaction.discount_type || 'fixed',
       amount: transaction.amount,
       paymentMethod: transaction.payment_method || 'cash',
+      paymentDetails: transaction.payment_details || null,
       transactionType: transaction.transaction_type || 'service',
       commissionAmount: transaction.commission_amount || 0,
+      pointsUsed: transaction.points_used || 0,
+      pointsEarned: transaction.points_earned || 0,
+      notes: transaction.notes || '',
       status: transaction.status || 'completed',
+      date: new Date(transaction.date || Date.now()),
     });
   });
 
