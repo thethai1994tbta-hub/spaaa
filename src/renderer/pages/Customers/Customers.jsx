@@ -1,39 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty, Select, DatePicker } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
+import dayjs from 'dayjs';
 
 export default function Customers() {
   const { invoke } = useAPI();
   const [customers, setCustomers] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
   const [customerBookings, setCustomerBookings] = useState([]);
   const [customerTransactions, setCustomerTransactions] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isBookingEditMode, setIsBookingEditMode] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [bookingSearchText, setBookingSearchText] = useState('');
+  const [activeTab, setActiveTab] = useState('customers');
   const [form] = Form.useForm();
+  const [bookingForm] = Form.useForm();
 
   useEffect(() => {
     loadCustomers();
+    if (activeTab === 'bookings') {
+      loadBookings();
+    }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'bookings') {
+      loadBookings();
+    }
+  }, [activeTab]);
 
   const loadCustomers = async () => {
     setLoading(true);
     try {
       const result = await invoke('db:customers:getAll');
-      console.log('[Customers] Loaded data:', result);
       const data = result.data || result || [];
-      console.log('[Customers] Final data:', data);
       setCustomers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('[Customers] Error:', error);
       message.error('Lỗi tải khách hàng: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBookings = async () => {
+    setBookingsLoading(true);
+    try {
+      const result = await invoke('db:bookings:getAll');
+      const data = result.data || result || [];
+      setBookings(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('[Bookings] Error:', error);
+      message.error('Lỗi tải đặt lịch: ' + error.message);
+    } finally {
+      setBookingsLoading(false);
     }
   };
 
@@ -52,15 +82,15 @@ export default function Customers() {
   const loadCustomerDetails = async (customerId) => {
     setDetailLoading(true);
     try {
-      const bookingsResult = await invoke('db:query', 'BOOKINGS', [
+      const bookingsResult = await invoke('db:query', 'bookings', [
         { field: 'customerId', operator: '==', value: customerId }
       ]);
-      const transactionsResult = await invoke('db:query', 'TRANSACTIONS', [
+      const transactionsResult = await invoke('db:query', 'transactions', [
         { field: 'customerId', operator: '==', value: customerId }
       ]);
 
-      setCustomerBookings(bookingsResult.data || []);
-      setCustomerTransactions(transactionsResult.data || []);
+      setCustomerBookings(bookingsResult.data || bookingsResult || []);
+      setCustomerTransactions(transactionsResult.data || transactionsResult || []);
     } catch (error) {
       console.error('[Customers] Error loading details:', error);
       message.error('Lỗi tải chi tiết khách hàng: ' + error.message);
@@ -98,6 +128,54 @@ export default function Customers() {
       loadCustomers();
     } catch (error) {
       message.error('Lỗi xóa khách hàng: ' + error.message);
+    }
+  };
+
+  const handleAddBooking = async (values) => {
+    try {
+      await invoke('db:bookings:add', {
+        customer_id: values.customer_id,
+        staff_id: values.staff_id,
+        service_id: values.service_id,
+        booking_date: dayjs(values.booking_date).toISOString(),
+        status: values.status || 'pending',
+        notes: values.notes || '',
+      });
+      message.success('Thêm đặt lịch thành công');
+      bookingForm.resetFields();
+      setIsBookingModalOpen(false);
+      loadBookings();
+    } catch (error) {
+      message.error('Lỗi thêm đặt lịch: ' + error.message);
+    }
+  };
+
+  const handleEditBooking = async (values) => {
+    try {
+      await invoke('db:bookings:update', selectedBooking.id, {
+        customer_id: values.customer_id,
+        staff_id: values.staff_id,
+        service_id: values.service_id,
+        booking_date: dayjs(values.booking_date).toISOString(),
+        status: values.status || 'pending',
+        notes: values.notes || '',
+      });
+      message.success('Cập nhật đặt lịch thành công');
+      bookingForm.resetFields();
+      setIsBookingModalOpen(false);
+      loadBookings();
+    } catch (error) {
+      message.error('Lỗi cập nhật đặt lịch: ' + error.message);
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId) => {
+    try {
+      await invoke('db:bookings:delete', bookingId);
+      message.success('Xóa đặt lịch thành công');
+      loadBookings();
+    } catch (error) {
+      message.error('Lỗi xóa đặt lịch: ' + error.message);
     }
   };
 
@@ -225,51 +303,184 @@ export default function Customers() {
     },
   ];
 
+  const filteredBookings = bookings.filter(booking =>
+    (customers.find(c => c.id === booking.customerId)?.name || '').toLowerCase().includes(bookingSearchText.toLowerCase())
+  );
+
+  const bookingColumns = [
+    {
+      title: 'Khách Hàng',
+      dataIndex: 'customerId',
+      key: 'customerId',
+      width: 150,
+      render: (customerId) => {
+        const customer = customers.find(c => c.id === customerId);
+        return customer?.name || '-';
+      },
+    },
+    {
+      title: 'Ngày Đặt',
+      dataIndex: 'bookingDate',
+      key: 'bookingDate',
+      width: 150,
+      render: (date) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
+    },
+    {
+      title: 'Trạng Thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status) => {
+        const statusMap = { 'pending': 'Chờ xử lý', 'confirmed': 'Xác nhận', 'completed': 'Hoàn thành', 'cancelled': 'Hủy' };
+        const colorMap = { 'pending': '#faad14', 'confirmed': '#1890ff', 'completed': '#52c41a', 'cancelled': '#f5222d' };
+        return <span style={{ color: colorMap[status] }}>{statusMap[status] || status}</span>;
+      },
+    },
+    {
+      title: 'Ghi Chú',
+      dataIndex: 'notes',
+      key: 'notes',
+      render: (text) => text || '-',
+    },
+    {
+      title: 'Thao Tác',
+      key: 'action',
+      width: 150,
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setSelectedBooking(record);
+              setIsBookingEditMode(true);
+              setIsBookingModalOpen(true);
+              bookingForm.setFieldsValue({
+                ...record,
+                booking_date: dayjs(record.bookingDate),
+              });
+            }}
+          >
+            Sửa
+          </Button>
+          <Popconfirm
+            title="Xóa đặt lịch"
+            description="Bạn có chắc chắn muốn xóa?"
+            onConfirm={() => handleDeleteBooking(record.id)}
+            okText="Có"
+            cancelText="Không"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+              Xóa
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <Card
-      title="Quản Lý Khách Hàng"
-      extra={
-        <Space>
-          <Input
-            placeholder="Tìm kiếm theo tên, điện thoại, email..."
-            prefix={<SearchOutlined />}
-            style={{ width: 300 }}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={handleExportCSV}
-          >
-            Xuất CSV
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setIsEditMode(false);
-              form.resetFields();
-              setIsModalOpen(true);
-            }}
-            style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-          >
-            Thêm Khách Hàng
-          </Button>
-        </Space>
-      }
+      title="Quản Lý Khách Hàng & Đặt Lịch"
     >
-      <Spin spinning={loading}>
-        {filteredCustomers.length === 0 ? (
-          <Empty description="Không có khách hàng" style={{ marginTop: '50px' }} />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={filteredCustomers.map((c, i) => ({ ...c, key: c.id || i }))}
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 1000 }}
-          />
-        )}
-      </Spin>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'customers',
+            label: 'Khách Hàng',
+            children: (
+              <div>
+                <div style={{ marginBottom: 16, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                  <Input
+                    placeholder="Tìm kiếm theo tên, điện thoại, email..."
+                    prefix={<SearchOutlined />}
+                    style={{ width: 300 }}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                  />
+                  <Space>
+                    <Button
+                      icon={<DownloadOutlined />}
+                      onClick={handleExportCSV}
+                    >
+                      Xuất CSV
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={() => {
+                        setIsEditMode(false);
+                        form.resetFields();
+                        setIsModalOpen(true);
+                      }}
+                      style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                    >
+                      Thêm Khách Hàng
+                    </Button>
+                  </Space>
+                </div>
+                <Spin spinning={loading}>
+                  {filteredCustomers.length === 0 ? (
+                    <Empty description="Không có khách hàng" style={{ marginTop: '50px' }} />
+                  ) : (
+                    <Table
+                      columns={columns}
+                      dataSource={filteredCustomers.map((c, i) => ({ ...c, key: c.id || i }))}
+                      pagination={{ pageSize: 10 }}
+                      scroll={{ x: 1000 }}
+                    />
+                  )}
+                </Spin>
+              </div>
+            ),
+          },
+          {
+            key: 'bookings',
+            label: 'Đặt Lịch',
+            children: (
+              <div>
+                <div style={{ marginBottom: 16, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                  <Input
+                    placeholder="Tìm kiếm theo khách hàng..."
+                    prefix={<SearchOutlined />}
+                    style={{ width: 300 }}
+                    value={bookingSearchText}
+                    onChange={(e) => setBookingSearchText(e.target.value)}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => {
+                      setSelectedBooking(null);
+                      setIsBookingEditMode(false);
+                      bookingForm.resetFields();
+                      setIsBookingModalOpen(true);
+                    }}
+                    style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
+                  >
+                    Thêm Đặt Lịch
+                  </Button>
+                </div>
+                <Spin spinning={bookingsLoading}>
+                  {filteredBookings.length === 0 ? (
+                    <Empty description="Không có đặt lịch" style={{ marginTop: '50px' }} />
+                  ) : (
+                    <Table
+                      columns={bookingColumns}
+                      dataSource={filteredBookings.map((b, i) => ({ ...b, key: b.id || i }))}
+                      pagination={{ pageSize: 10 }}
+                      scroll={{ x: 1000 }}
+                    />
+                  )}
+                </Spin>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <Modal
         title={isEditMode ? "Chỉnh Sửa Khách Hàng" : "Thêm Khách Hàng Mới"}
@@ -500,6 +711,80 @@ export default function Customers() {
           )}
         </Spin>
       </Drawer>
+
+      {/* Booking Modal */}
+      <Modal
+        title={isBookingEditMode ? "Chỉnh Sửa Đặt Lịch" : "Thêm Đặt Lịch Mới"}
+        open={isBookingModalOpen}
+        onOk={() => bookingForm.submit()}
+        onCancel={() => {
+          setIsBookingModalOpen(false);
+          bookingForm.resetFields();
+        }}
+        okText={isBookingEditMode ? "Cập Nhật" : "Thêm"}
+        cancelText="Hủy"
+      >
+        <Form
+          form={bookingForm}
+          layout="vertical"
+          onFinish={isBookingEditMode ? handleEditBooking : handleAddBooking}
+        >
+          <Form.Item
+            label="Khách Hàng"
+            name="customer_id"
+            rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}
+          >
+            <Select
+              placeholder="Chọn khách hàng"
+              options={customers.map(c => ({ label: c.name, value: c.id }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Nhân Viên"
+            name="staff_id"
+          >
+            <Input placeholder="ID nhân viên" />
+          </Form.Item>
+
+          <Form.Item
+            label="Dịch Vụ"
+            name="service_id"
+          >
+            <Input placeholder="ID dịch vụ" />
+          </Form.Item>
+
+          <Form.Item
+            label="Ngày Đặt"
+            name="booking_date"
+            rules={[{ required: true, message: 'Vui lòng chọn ngày đặt' }]}
+          >
+            <DatePicker showTime format="DD/MM/YYYY HH:mm" placeholder="Chọn ngày giờ" />
+          </Form.Item>
+
+          <Form.Item
+            label="Trạng Thái"
+            name="status"
+            initialValue="pending"
+          >
+            <Select
+              options={[
+                { label: 'Chờ xử lý', value: 'pending' },
+                { label: 'Xác nhận', value: 'confirmed' },
+                { label: 'Hoàn thành', value: 'completed' },
+                { label: 'Hủy', value: 'cancelled' },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Ghi Chú"
+            name="notes"
+          >
+            <Input.TextArea placeholder="Ghi chú" rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 }

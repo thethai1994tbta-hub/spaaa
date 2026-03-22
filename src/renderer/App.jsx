@@ -13,7 +13,6 @@ import {
 import Dashboard from './pages/Dashboard/Dashboard';
 import Customers from './pages/Customers/Customers';
 import Staff from './pages/Staff/Staff';
-import Booking from './pages/Booking/Booking';
 import Payment from './pages/Payment/Payment';
 import Inventory from './pages/Inventory/Inventory';
 import Reports from './pages/Reports/Reports';
@@ -83,14 +82,8 @@ const App = () => {
                 {
                   key: 'customers',
                   icon: <UserOutlined />,
-                  label: 'Khách Hàng',
+                  label: 'Khách Hàng & Đặt Lịch',
                   onClick: () => setCurrentPage('customers'),
-                },
-                {
-                  key: 'booking',
-                  icon: <CalendarOutlined />,
-                  label: 'Đặt Lịch',
-                  onClick: () => setCurrentPage('booking'),
                 },
                 {
                   key: 'payment',
@@ -173,7 +166,6 @@ const App = () => {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/customers" element={<Customers />} />
                 <Route path="/staff" element={<Staff />} />
-                <Route path="/booking" element={<Booking />} />
                 <Route path="/payment" element={<Payment />} />
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/reports" element={<Reports />} />
@@ -182,7 +174,6 @@ const App = () => {
               {currentPage === 'dashboard' && <Dashboard />}
               {currentPage === 'customers' && <Customers />}
               {currentPage === 'staff' && <Staff />}
-              {currentPage === 'booking' && <Booking />}
               {currentPage === 'payment' && <Payment />}
               {currentPage === 'inventory' && <Inventory />}
               {currentPage === 'reports' && <Reports />}

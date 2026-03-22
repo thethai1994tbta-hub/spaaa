@@ -15,9 +15,9 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     try {
       const result = await invoke('db:dashboard:getStats');
-      setStats(result.data);
+      setStats(result.data || result);
       const bookingsResult = await invoke('db:bookings:getAll');
-      setBookings(bookingsResult.data || []);
+      setBookings(bookingsResult.data || bookingsResult || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
     }

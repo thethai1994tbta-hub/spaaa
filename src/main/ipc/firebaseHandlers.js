@@ -41,16 +41,26 @@ function setupFirebaseIPC() {
   ipcMain.handle('db:services:add', async (event, service) => {
     return addDocument(COLLECTIONS.SERVICES, {
       name: service.name,
-      price: service.price,
+      category: service.category || null,
+      price: service.price || 0,
       duration: service.duration || 60,
       description: service.description || null,
-      category: service.category || null,
+      steps: service.steps || null,
+      commissionRate: service.commissionRate || 0,
       active: true,
     });
   });
 
   ipcMain.handle('db:services:update', async (event, id, service) => {
-    return updateDocument(COLLECTIONS.SERVICES, id, service);
+    return updateDocument(COLLECTIONS.SERVICES, id, {
+      name: service.name,
+      category: service.category || null,
+      price: service.price || 0,
+      duration: service.duration || 60,
+      description: service.description || null,
+      steps: service.steps || null,
+      commissionRate: service.commissionRate || 0,
+    });
   });
 
   ipcMain.handle('db:services:delete', async (event, id) => {
@@ -245,6 +255,40 @@ function setupFirebaseIPC() {
       type: movement.type || 'import',
       user: movement.user || 'System',
     });
+  });
+
+  // ==================== PACKAGES ====================
+  ipcMain.handle('db:packages:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.PACKAGES, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:packages:add', async (event, pkg) => {
+    return addDocument(COLLECTIONS.PACKAGES, {
+      name: pkg.name,
+      category: pkg.category || null,
+      description: pkg.description || null,
+      price: pkg.price || 0,
+      sessions: pkg.sessions || 1,
+      validityDays: pkg.validityDays || 30,
+      services: pkg.services || [],
+      status: 'active',
+    });
+  });
+
+  ipcMain.handle('db:packages:update', async (event, id, pkg) => {
+    return updateDocument(COLLECTIONS.PACKAGES, id, {
+      name: pkg.name,
+      category: pkg.category || null,
+      description: pkg.description || null,
+      price: pkg.price || 0,
+      sessions: pkg.sessions || 1,
+      validityDays: pkg.validityDays || 30,
+      services: pkg.services || [],
+    });
+  });
+
+  ipcMain.handle('db:packages:delete', async (event, id) => {
+    return updateDocument(COLLECTIONS.PACKAGES, id, { status: 'inactive' });
   });
 
   // ==================== GENERIC QUERY ====================

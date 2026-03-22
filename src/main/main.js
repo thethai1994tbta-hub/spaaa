@@ -37,7 +37,7 @@ function createWindow() {
       preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
     },
     icon: path.join(__dirname, '../../public/images/icon.ico'),
   });

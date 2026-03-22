@@ -1,26 +1,86 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Space, Popconfirm, Empty, InputNumber, Tag, Descriptions, Tabs, DatePicker, Select, Statistic, Row, Col } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, LoginOutlined, LogoutOutlined } from '@ant-design/icons';
+import {
+  Card,
+  Table,
+  Button,
+  Modal,
+  Form,
+  Input,
+  message,
+  Spin,
+  Drawer,
+  Space,
+  Popconfirm,
+  Empty,
+  InputNumber,
+  Tag,
+  Descriptions,
+  Tabs,
+  DatePicker,
+  Select,
+  Statistic,
+  Row,
+  Col,
+} from 'antd';
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  DownloadOutlined,
+  SearchOutlined,
+  LoginOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
 
+// Helper: Convert any date format to Date object
+// Handles: Date, ISO string, Firestore Timestamp (with toDate()),
+// and serialized Timestamp ({_seconds, _nanoseconds} or {seconds, nanoseconds})
+const toDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  if (val.toDate && typeof val.toDate === 'function') return val.toDate();
+  // Serialized Firestore Timestamp (loses toDate() method over IPC)
+  if (val._seconds !== undefined) return new Date(val._seconds * 1000);
+  if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+  if (typeof val === 'string' || typeof val === 'number') return new Date(val);
+  return null;
+};
+
+// Helper: Format date for display
+const formatDate = (val) => {
+  const d = toDate(val);
+  return d ? dayjs(d).format('DD/MM/YYYY') : '-';
+};
+
+// Helper: Format time for display
+const formatTime = (val) => {
+  const d = toDate(val);
+  return d ? dayjs(d).format('HH:mm') : '-';
+};
+
 export default function Staff() {
   const { invoke } = useAPI();
-  const [staff, setStaff] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(dayjs());
-  const [commissionMonth, setCommissionMonth] = useState(dayjs());
-  const [commissionData, setCommissionData] = useState(null);
   const [form] = Form.useForm();
   const [checkInForm] = Form.useForm();
 
+  // Data
+  const [staff, setStaff] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [commissionData, setCommissionData] = useState(null);
+
+  // UI States
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(dayjs());
+  const [commissionMonth, setCommissionMonth] = useState(dayjs());
+  const [selectedStaff, setSelectedStaff] = useState(null);
+
+  // ============ LOAD DATA ============
   useEffect(() => {
     loadStaff();
   }, []);
@@ -32,8 +92,8 @@ export default function Staff() {
       const data = result.data || result || [];
       setStaff(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('[Staff] Error:', error);
-      message.error('Lỗi tải nhân viên: ' + error.message);
+      message.error('Lỗi tải nhân viên');
+      setStaff([]);
     } finally {
       setLoading(false);
     }
@@ -41,54 +101,69 @@ export default function Staff() {
 
   const loadAttendanceRecords = async (staffId) => {
     try {
-      console.log('[Staff] Loading attendance for staffId:', staffId);
       const result = await invoke('db:query', 'attendance', [
-        { field: 'staffId', operator: '==', value: staffId }
+        { field: 'staffId', operator: '==', value: staffId },
       ]);
-      console.log('[Staff] Attendance result:', result);
-      setAttendanceRecords((result.data || []).sort((a, b) => new Date(b.date) - new Date(a.date)));
+
+      let records = result.data || result || [];
+      // Sort by date descending
+      records.sort((a, b) => {
+        const dateA = toDate(a.date)?.getTime() || 0;
+        const dateB = toDate(b.date)?.getTime() || 0;
+        return dateB - dateA;
+      });
+
+      setAttendanceRecords(records);
     } catch (error) {
-      console.error('[Staff] Error loading attendance:', error);
+      console.error('[Staff] Attendance load error:', error);
       setAttendanceRecords([]);
     }
   };
 
-  const loadCommissionData = async (staffId, rate, month = null) => {
+  const loadCommissionData = async (staffId, commissionRate, month = null) => {
     try {
-      const result = await invoke('db:query', 'TRANSACTIONS', [
-        { field: 'staffId', operator: '==', value: staffId }
+      const result = await invoke('db:query', 'transactions', [
+        { field: 'staffId', operator: '==', value: staffId },
       ]);
 
       const targetMonth = month || commissionMonth;
       const monthStr = targetMonth.format('YYYY-MM');
-      const monthTransactions = (result.data || []).filter(t => {
-        const tDate = t.date || t.createdAt || '';
-        return tDate.startsWith(monthStr);
+
+      let transactions = result.data || result || [];
+      const monthTransactions = transactions.filter((t) => {
+        const dateField = t.date || t.createdAt;
+        if (!dateField) return false;
+        const dateStr = toDate(dateField).toISOString();
+        return dateStr.startsWith(monthStr);
       });
 
-      const totalRevenue = monthTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      const commission = totalRevenue * (Number(rate) / 100);
+      const totalRevenue = monthTransactions.reduce(
+        (sum, t) => sum + (Number(t.amount) || 0),
+        0
+      );
+      const commission = totalRevenue * (Number(commissionRate) / 100);
 
       setCommissionData({
         totalRevenue,
-        commissionRate: rate,
+        commissionRate,
         totalCommission: commission,
-        transactions: monthTransactions || [],
+        transactions: monthTransactions,
       });
     } catch (error) {
-      console.error('[Staff] Error loading commission:', error);
+      console.error('[Staff] Commission load error:', error);
       setCommissionData({
         totalRevenue: 0,
-        commissionRate: rate,
+        commissionRate,
         totalCommission: 0,
         transactions: [],
       });
     }
   };
 
+  // ============ ACTIONS ============
   const handleAddStaff = async (values) => {
     try {
-      await invoke('db:staff:add', {
+      const result = await invoke('db:staff:add', {
         name: values.name,
         phone: values.phone || '',
         email: values.email || '',
@@ -96,18 +171,28 @@ export default function Staff() {
         salary: Number(values.salary) || 0,
         commission_rate: Number(values.commissionRate) || 0,
       });
-      message.success('Thêm nhân viên thành công');
-      form.resetFields();
-      setIsModalOpen(false);
-      loadStaff();
+
+      if (result.success || result.id) {
+        message.success('Thêm nhân viên thành công');
+        form.resetFields();
+        setIsModalOpen(false);
+        await loadStaff();
+      } else {
+        message.error('Lỗi thêm nhân viên');
+      }
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
   };
 
   const handleUpdateStaff = async (values) => {
+    if (!selectedStaff?.id) {
+      message.error('Lỗi: Không tìm thấy nhân viên');
+      return;
+    }
+
     try {
-      await invoke('db:staff:update', selectedStaff.id, {
+      const result = await invoke('db:staff:update', selectedStaff.id, {
         name: values.name,
         phone: values.phone || '',
         email: values.email || '',
@@ -115,12 +200,16 @@ export default function Staff() {
         salary: Number(values.salary) || 0,
         commission_rate: Number(values.commissionRate) || 0,
       });
-      message.success('Cập nhật thành công');
-      setDetailDrawerOpen(false);
-      setIsEditMode(false);
-      form.resetFields();
-      loadStaff();
-      loadCommissionData(selectedStaff.id, Number(values.commissionRate) || 0);
+
+      if (result.success) {
+        message.success('Cập nhật thành công');
+        setDetailDrawerOpen(false);
+        setIsEditMode(false);
+        form.resetFields();
+        await loadStaff();
+      } else {
+        message.error('Lỗi cập nhật');
+      }
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -128,42 +217,55 @@ export default function Staff() {
 
   const handleDeleteStaff = async (id) => {
     try {
-      await invoke('db:staff:delete', id);
-      message.success('Xóa thành công');
-      setDetailDrawerOpen(false);
-      loadStaff();
+      const result = await invoke('db:staff:delete', id);
+      if (result.success) {
+        message.success('Xóa thành công');
+        setDetailDrawerOpen(false);
+        await loadStaff();
+      } else {
+        message.error('Lỗi xóa nhân viên');
+      }
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
   };
 
   const handleCheckIn = async (values) => {
+    if (!selectedStaff?.id) {
+      message.error('Lỗi: Không tìm thấy nhân viên');
+      return;
+    }
+
     try {
       const now = new Date();
-      const checkInRecord = {
+      const checkInTime = dayjs(values.checkInTime);
+      const checkOutTime = values.checkOutTime ? dayjs(values.checkOutTime) : null;
+
+      // Calculate hours if checkout exists
+      let hoursWorked = values.hoursWorked || 0;
+      if (checkOutTime && checkInTime) {
+        hoursWorked = parseFloat(checkOutTime.diff(checkInTime, 'hour', true).toFixed(1));
+      }
+
+      const result = await invoke('db:attendance:add', {
         staffId: selectedStaff.id,
         staffName: selectedStaff.name,
         date: now.toISOString(),
-        checkInTime: dayjs(values.checkInTime).toISOString(),
-        checkOutTime: values.checkOutTime ? dayjs(values.checkOutTime).toISOString() : null,
+        checkInTime: checkInTime.toISOString(),
+        checkOutTime: checkOutTime ? checkOutTime.toISOString() : null,
         status: values.status || 'present',
         notes: values.notes || '',
-        hoursWorked: values.hoursWorked || 0,
-      };
+        hoursWorked,
+      });
 
-      console.log('[Staff] Saving attendance:', checkInRecord);
-      try {
-        const result = await invoke('db:attendance:add', checkInRecord);
-        console.log('[Staff] Attendance save result:', result);
-      } catch (e) {
-        console.error('[Staff] Attendance save error:', e.message);
+      if (result.success || result.id) {
+        message.success('Ghi nhận chấm công thành công');
+        checkInForm.resetFields();
+        setIsCheckInModalOpen(false);
+        await loadAttendanceRecords(selectedStaff.id);
+      } else {
+        message.error('Lỗi: Không thể ghi nhận chấm công');
       }
-
-      message.success('Ghi nhận chấm công thành công');
-      checkInForm.resetFields();
-      setIsCheckInModalOpen(false);
-      loadStaff();
-      loadAttendanceRecords(selectedStaff.id);
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -175,19 +277,19 @@ export default function Staff() {
       return;
     }
 
-    const headers = ['Tên', 'Vị Trí', 'Điện Thoại', 'Email', 'Lương', 'Tỷ Lệ Hoa Hồng'];
-    const rows = staff.map(s => [
+    const headers = ['Tên', 'Vị Trí', 'Điện Thoại', 'Email', 'Lương', 'Hoa Hồng (%)'];
+    const rows = staff.map((s) => [
       s.name || '',
       s.position || '',
       s.phone || '',
       s.email || '',
       s.salary || 0,
-      (s.commission_rate || 0) * 100 + '%',
+      (s.commissionRate ?? s.commission_rate ?? 0).toFixed(1),
     ]);
 
     const csv = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -205,30 +307,91 @@ export default function Staff() {
     setSelectedStaff(s);
     setIsEditMode(false);
     setDetailDrawerOpen(true);
-    form.setFieldsValue(s);
+    form.setFieldsValue({
+      name: s.name,
+      phone: s.phone,
+      email: s.email,
+      position: s.position,
+      salary: s.salary,
+      commissionRate: s.commissionRate ?? s.commission_rate ?? 0,
+    });
     loadAttendanceRecords(s.id);
-    loadCommissionData(s.id, s.commission_rate || 0);
+    loadCommissionData(s.id, s.commissionRate ?? s.commission_rate ?? 0);
   };
 
-  const filteredStaff = staff.filter(s =>
-    (s.name?.toLowerCase().includes(searchText.toLowerCase())) ||
-    (s.position?.toLowerCase().includes(searchText.toLowerCase())) ||
-    (s.phone?.includes(searchText))
+  // ============ COMPUTED ============
+  const filteredStaff = staff.filter(
+    (s) =>
+      (s.name?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (s.position?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (s.phone?.includes(searchText))
   );
 
   const getMonthlyStats = () => {
     if (!selectedMonth) {
-      return { totalHours: 0, presentDays: 0, absentDays: 0, monthRecords: [] };
+      return { totalHours: 0, presentDays: 0, absentDays: 0, lateDays: 0, monthRecords: [] };
     }
-    const monthStr = selectedMonth.format('YYYY-MM');
-    const monthRecords = attendanceRecords.filter(r => r.date?.startsWith(monthStr));
-    const totalHours = monthRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
-    const presentDays = monthRecords.filter(r => r.status === 'present').length;
-    const absentDays = monthRecords.filter(r => r.status === 'absent').length;
 
-    return { totalHours, presentDays, absentDays, monthRecords };
+    const monthStr = selectedMonth.format('YYYY-MM');
+    const monthRecords = attendanceRecords.filter((r) => {
+      const dateStr = toDate(r.date)?.toISOString() || '';
+      return dateStr.startsWith(monthStr);
+    });
+
+    const totalHours = monthRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0);
+    const presentDays = monthRecords.filter((r) => r.status === 'present').length;
+    const absentDays = monthRecords.filter((r) => r.status === 'absent').length;
+    const lateDays = monthRecords.filter((r) => r.status === 'late').length;
+
+    return { totalHours, presentDays, absentDays, lateDays, monthRecords };
   };
 
+  // Build attendance calendar data for selected month
+  const getCalendarData = () => {
+    if (!selectedMonth) return { weeks: [], dayMap: {} };
+
+    const monthStr = selectedMonth.format('YYYY-MM');
+    const monthRecords = attendanceRecords.filter((r) => {
+      const dateStr = toDate(r.date)?.toISOString() || '';
+      return dateStr.startsWith(monthStr);
+    });
+
+    // Build a map: dayOfMonth -> record
+    const dayMap = {};
+    monthRecords.forEach((r) => {
+      const d = toDate(r.date);
+      if (d) {
+        const day = d.getDate();
+        dayMap[day] = r;
+      }
+    });
+
+    // Build weeks grid
+    const startOfMonth = selectedMonth.startOf('month');
+    const daysInMonth = selectedMonth.daysInMonth();
+    // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    // We want Monday-first (0 = Mon, 6 = Sun)
+    const firstDayOfWeek = (startOfMonth.day() + 6) % 7; // convert Sun=0 to Mon=0
+
+    const weeks = [];
+    let week = new Array(firstDayOfWeek).fill(null);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      week.push(day);
+      if (week.length === 7) {
+        weeks.push(week);
+        week = [];
+      }
+    }
+    if (week.length > 0) {
+      while (week.length < 7) week.push(null);
+      weeks.push(week);
+    }
+
+    return { weeks, dayMap };
+  };
+
+  // ============ COLUMNS ============
   const staffColumns = [
     {
       title: 'Tên',
@@ -253,14 +416,17 @@ export default function Staff() {
       dataIndex: 'salary',
       key: 'salary',
       width: 120,
-      render: (salary) => salary ? `${Number(salary).toLocaleString('vi-VN')} ₫` : '0 ₫',
+      render: (salary) =>
+        salary ? `${Number(salary).toLocaleString('vi-VN')} ₫` : '0 ₫',
     },
     {
       title: 'Hoa Hồng',
-      dataIndex: 'commission_rate',
       key: 'commission_rate',
       width: 100,
-      render: (rate) => `${(rate || 0).toFixed(1)}%`,
+      render: (_, record) => {
+        const rate = record.commissionRate ?? record.commission_rate ?? 0;
+        return `${Number(rate).toFixed(1)}%`;
+      },
     },
     {
       title: 'Thao Tác',
@@ -300,7 +466,14 @@ export default function Staff() {
               setSelectedStaff(record);
               setIsEditMode(true);
               setDetailDrawerOpen(true);
-              form.setFieldsValue(record);
+              form.setFieldsValue({
+                name: record.name,
+                phone: record.phone,
+                email: record.email,
+                position: record.position,
+                salary: record.salary,
+                commissionRate: record.commissionRate ?? record.commission_rate ?? 0,
+              });
             }}
           >
             Sửa
@@ -327,28 +500,28 @@ export default function Staff() {
       dataIndex: 'date',
       key: 'date',
       width: 120,
-      render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-',
+      render: formatDate,
     },
     {
       title: 'Check In',
       dataIndex: 'checkInTime',
       key: 'checkInTime',
       width: 100,
-      render: (time) => time ? dayjs(time).format('HH:mm') : '-',
+      render: formatTime,
     },
     {
       title: 'Check Out',
       dataIndex: 'checkOutTime',
       key: 'checkOutTime',
       width: 100,
-      render: (time) => time ? dayjs(time).format('HH:mm') : '-',
+      render: formatTime,
     },
     {
       title: 'Giờ Làm',
       dataIndex: 'hoursWorked',
       key: 'hoursWorked',
       width: 80,
-      render: (hours) => hours ? `${hours.toFixed(1)}h` : '-',
+      render: (hours) => (hours ? `${hours.toFixed(1)}h` : '-'),
     },
     {
       title: 'Trạng Thái',
@@ -356,13 +529,24 @@ export default function Staff() {
       key: 'status',
       width: 100,
       render: (status) => {
-        const colors = { present: 'green', absent: 'red', late: 'orange', 'early-leave': 'blue' };
-        const labels = { present: 'Có Mặt', absent: 'Vắng', late: 'Đi Muộn', 'early-leave': 'Về Sớm' };
+        const colors = {
+          present: 'green',
+          absent: 'red',
+          late: 'orange',
+          'early-leave': 'blue',
+        };
+        const labels = {
+          present: 'Có Mặt',
+          absent: 'Vắng',
+          late: 'Đi Muộn',
+          'early-leave': 'Về Sớm',
+        };
         return <Tag color={colors[status]}>{labels[status] || status}</Tag>;
       },
     },
   ];
 
+  // ============ RENDER ============
   return (
     <Card
       title="Quản Lý Nhân Viên"
@@ -406,6 +590,7 @@ export default function Staff() {
         )}
       </Spin>
 
+      {/* Add/Edit Modal */}
       <Modal
         title={isEditMode ? 'Sửa Nhân Viên' : 'Thêm Nhân Viên'}
         open={isModalOpen}
@@ -436,17 +621,18 @@ export default function Staff() {
             <Input />
           </Form.Item>
           <Form.Item label="Email" name="email">
-            <Input />
+            <Input type="email" />
           </Form.Item>
           <Form.Item label="Lương (₫)" name="salary">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item label="Tỷ Lệ Hoa Hồng (%)" name="commissionRate">
-            <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} placeholder="0-100" />
+            <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* Detail Drawer */}
       <Drawer
         title={selectedStaff?.name}
         placement="right"
@@ -494,12 +680,12 @@ export default function Staff() {
         }
       >
         {isEditMode ? (
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleUpdateStaff}
-          >
-            <Form.Item label="Tên" name="name" rules={[{ required: true }]}>
+          <Form form={form} layout="vertical" onFinish={handleUpdateStaff}>
+            <Form.Item
+              label="Tên"
+              name="name"
+              rules={[{ required: true }]}
+            >
               <Input />
             </Form.Item>
             <Form.Item label="Vị Trí" name="position">
@@ -509,174 +695,314 @@ export default function Staff() {
               <Input />
             </Form.Item>
             <Form.Item label="Email" name="email">
-              <Input />
+              <Input type="email" />
             </Form.Item>
             <Form.Item label="Lương (₫)" name="salary">
               <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item label="Tỷ Lệ Hoa Hồng (%)" name="commissionRate">
-              <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} placeholder="0-100" />
+              <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} />
             </Form.Item>
           </Form>
-        ) : (
-          selectedStaff && (
-            <Tabs
-              items={[
-                {
-                  key: 'info',
-                  label: 'Thông Tin',
-                  children: (
-                    <Descriptions column={1} bordered size="small">
-                      <Descriptions.Item label="Tên">{selectedStaff.name}</Descriptions.Item>
-                      <Descriptions.Item label="Vị Trí">{selectedStaff.position || '-'}</Descriptions.Item>
-                      <Descriptions.Item label="Điện Thoại">{selectedStaff.phone || '-'}</Descriptions.Item>
-                      <Descriptions.Item label="Email">{selectedStaff.email || '-'}</Descriptions.Item>
-                      <Descriptions.Item label="Lương">
-                        {selectedStaff.salary ? `${Number(selectedStaff.salary).toLocaleString('vi-VN')} ₫` : '0 ₫'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Tỷ Lệ Hoa Hồng">
-                        {(selectedStaff.commission_rate || 0).toFixed(1)}%
-                      </Descriptions.Item>
-                    </Descriptions>
-                  ),
-                },
-                {
-                  key: 'attendance',
-                  label: 'Chấm Công',
-                  children: (
+        ) : selectedStaff ? (
+          <Tabs
+            items={[
+              {
+                key: 'info',
+                label: 'Thông Tin',
+                children: (
+                  <Descriptions column={1} bordered size="small">
+                    <Descriptions.Item label="Tên">
+                      {selectedStaff.name}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Vị Trí">
+                      {selectedStaff.position || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Điện Thoại">
+                      {selectedStaff.phone || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Email">
+                      {selectedStaff.email || '-'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Lương">
+                      {selectedStaff.salary
+                        ? `${Number(selectedStaff.salary).toLocaleString('vi-VN')} ₫`
+                        : '0 ₫'}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Tỷ Lệ Hoa Hồng">
+                      {(selectedStaff.commissionRate ?? selectedStaff.commission_rate ?? 0).toFixed(1)}%
+                    </Descriptions.Item>
+                  </Descriptions>
+                ),
+              },
+              {
+                key: 'attendance',
+                label: 'Chấm Công',
+                children: (() => {
+                  const stats = getMonthlyStats();
+                  const { weeks, dayMap } = getCalendarData();
+                  const weekDayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+                  const statusStyle = {
+                    present: { bg: '#f6ffed', border: '#52c41a', dot: '#52c41a', label: 'Có Mặt' },
+                    absent:  { bg: '#fff1f0', border: '#ff4d4f', dot: '#ff4d4f', label: 'Vắng' },
+                    late:    { bg: '#fff7e6', border: '#fa8c16', dot: '#fa8c16', label: 'Đi Muộn' },
+                    'early-leave': { bg: '#e6f7ff', border: '#1890ff', dot: '#1890ff', label: 'Về Sớm' },
+                  };
+                  const today = dayjs();
+
+                  return (
                     <div>
-                      <div style={{ marginBottom: 20 }}>
+                      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
                         <DatePicker
                           picker="month"
                           value={selectedMonth}
                           onChange={setSelectedMonth}
                           format="MM/YYYY"
                         />
+                        <span style={{ fontSize: 13, color: '#888' }}>
+                          Tháng {selectedMonth?.format('MM/YYYY')}
+                        </span>
                       </div>
-                      <Row gutter={16} style={{ marginBottom: 20 }}>
+
+                      {/* Stats row */}
+                      <Row gutter={12} style={{ marginBottom: 16 }}>
                         <Col span={6}>
-                          <Statistic
-                            title="Tổng Giờ"
-                            value={getMonthlyStats().totalHours}
-                            suffix="h"
-                          />
+                          <Statistic title="Tổng Giờ" value={stats.totalHours.toFixed(1)} suffix="h" />
                         </Col>
                         <Col span={6}>
-                          <Statistic
-                            title="Có Mặt"
-                            value={getMonthlyStats().presentDays}
-                            valueStyle={{ color: '#52c41a' }}
-                          />
+                          <Statistic title="Có Mặt" value={stats.presentDays} valueStyle={{ color: '#52c41a' }} />
                         </Col>
                         <Col span={6}>
-                          <Statistic
-                            title="Vắng"
-                            value={getMonthlyStats().absentDays}
-                            valueStyle={{ color: '#f5222d' }}
-                          />
+                          <Statistic title="Đi Muộn" value={stats.lateDays} valueStyle={{ color: '#fa8c16' }} />
+                        </Col>
+                        <Col span={6}>
+                          <Statistic title="Vắng" value={stats.absentDays} valueStyle={{ color: '#f5222d' }} />
                         </Col>
                       </Row>
-                      <Table
-                        columns={attendanceColumns}
-                        dataSource={getMonthlyStats().monthRecords.map((r, i) => ({ ...r, key: r.id || i }))}
-                        pagination={false}
-                        size="small"
-                        locale={{ emptyText: 'Không có dữ liệu' }}
-                      />
-                    </div>
-                  ),
-                },
-                {
-                  key: 'commission',
-                  label: 'Hoa Hồng',
-                  children: (
-                    <div>
-                      <div style={{ marginBottom: 20 }}>
-                        <DatePicker
-                          picker="month"
-                          value={commissionMonth}
-                          onChange={(date) => {
-                            setCommissionMonth(date);
-                            loadCommissionData(selectedStaff.id, selectedStaff.commission_rate || 0, date);
-                          }}
-                          format="MM/YYYY"
+
+                      {/* Legend */}
+                      <div style={{ marginBottom: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                        {Object.entries(statusStyle).map(([key, s]) => (
+                          <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                            <span style={{ width: 12, height: 12, borderRadius: 3, background: s.bg, border: `2px solid ${s.border}`, display: 'inline-block' }} />
+                            {s.label}
+                          </span>
+                        ))}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#fafafa', border: '2px solid #d9d9d9', display: 'inline-block' }} />
+                          Không có dữ liệu
+                        </span>
+                      </div>
+
+                      {/* Calendar grid */}
+                      <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+                        {/* Day headers */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#fafafa' }}>
+                          {weekDayLabels.map((d, i) => (
+                            <div key={d} style={{
+                              textAlign: 'center',
+                              padding: '8px 4px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: i >= 5 ? '#ff4d4f' : '#595959',
+                              borderRight: i < 6 ? '1px solid #f0f0f0' : 'none',
+                              borderBottom: '1px solid #f0f0f0',
+                            }}>
+                              {d}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Weeks */}
+                        {weeks.map((week, wi) => (
+                          <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                            {week.map((day, di) => {
+                              const record = day ? dayMap[day] : null;
+                              const style = record ? (statusStyle[record.status] || statusStyle.present) : null;
+                              const isToday = day &&
+                                selectedMonth.year() === today.year() &&
+                                selectedMonth.month() === today.month() &&
+                                day === today.date();
+
+                              return (
+                                <div key={di} style={{
+                                  minHeight: 64,
+                                  padding: '6px 8px',
+                                  background: day ? (style ? style.bg : '#ffffff') : '#fafafa',
+                                  border: `1px solid ${day && style ? style.border : '#f0f0f0'}`,
+                                  borderWidth: day && style ? '0 0 0 3px' : '0',
+                                  borderRight: di < 6 ? '1px solid #f0f0f0' : 'none',
+                                  borderBottom: wi < weeks.length - 1 ? '1px solid #f0f0f0' : 'none',
+                                  borderLeft: day && style ? `3px solid ${style.border}` : (di > 0 ? '1px solid #f0f0f0' : 'none'),
+                                  opacity: day ? 1 : 0.3,
+                                }}>
+                                  {day && (
+                                    <>
+                                      <div style={{
+                                        fontSize: 13,
+                                        fontWeight: isToday ? 700 : 400,
+                                        color: isToday ? '#ff69b4' : (di >= 5 ? '#ff4d4f' : '#262626'),
+                                        marginBottom: 2,
+                                        background: isToday ? 'rgba(255,105,180,0.1)' : 'transparent',
+                                        borderRadius: 4,
+                                        width: 24,
+                                        height: 24,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                      }}>
+                                        {day}
+                                      </div>
+                                      {record && (
+                                        <div>
+                                          <Tag
+                                            color={style?.dot}
+                                            style={{ fontSize: 10, padding: '0 4px', marginBottom: 2 }}
+                                          >
+                                            {style?.label}
+                                          </Tag>
+                                          {record.checkInTime && (
+                                            <div style={{ fontSize: 10, color: '#8c8c8c' }}>
+                                              {formatTime(record.checkInTime)}
+                                              {record.checkOutTime && ` - ${formatTime(record.checkOutTime)}`}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Detail table */}
+                      <div style={{ marginTop: 16 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 8 }}>Chi Tiết</div>
+                        <Table
+                          columns={attendanceColumns}
+                          dataSource={stats.monthRecords.map((r, i) => ({ ...r, key: r.id || i }))}
+                          pagination={false}
+                          size="small"
+                          locale={{ emptyText: 'Không có dữ liệu' }}
                         />
                       </div>
-                      {commissionData ? (
-                        <>
-                          <Row gutter={16} style={{ marginBottom: 20 }}>
-                            <Col span={8}>
-                              <Statistic
-                                title="Doanh Số"
-                                value={commissionData.totalRevenue}
-                                suffix="₫"
-                                formatter={(value) => `${Number(value).toLocaleString('vi-VN')}`}
-                              />
-                            </Col>
-                            <Col span={8}>
-                              <Statistic
-                                title="Tỷ Lệ"
-                                value={commissionData.commissionRate}
-                                suffix="%"
-                              />
-                            </Col>
-                            <Col span={8}>
-                              <Statistic
-                                title="Hoa Hồng"
-                                value={commissionData.totalCommission}
-                                suffix="₫"
-                                formatter={(value) => `${Number(value).toLocaleString('vi-VN')}`}
-                                valueStyle={{ color: '#ff69b4', fontWeight: 'bold' }}
-                              />
-                            </Col>
-                          </Row>
-                          {commissionData.transactions.length > 0 ? (
-                            <Table
-                              columns={[
-                                {
-                                  title: 'Ngày',
-                                  dataIndex: 'date',
-                                  key: 'date',
-                                  width: 120,
-                                  render: (date) => date ? dayjs(date).format('DD/MM/YYYY') : '-',
-                                },
-                                {
-                                  title: 'Số Tiền',
-                                  dataIndex: 'amount',
-                                  key: 'amount',
-                                  width: 130,
-                                  render: (amount) => `${Number(amount || 0).toLocaleString('vi-VN')} ₫`,
-                                },
-                                {
-                                  title: 'Hoa Hồng',
-                                  key: 'commission',
-                                  width: 130,
-                                  render: (_, record) => {
-                                    const commission = (Number(record.amount) || 0) * (Number(commissionData.commissionRate) / 100);
-                                    return `${Number(commission).toLocaleString('vi-VN')} ₫`;
-                                  },
-                                },
-                              ]}
-                              dataSource={commissionData.transactions.map((t, i) => ({ ...t, key: t.id || i }))}
-                              pagination={false}
-                              size="small"
-                            />
-                          ) : (
-                            <Empty description="Không có doanh số" style={{ marginTop: 30 }} />
-                          )}
-                        </>
-                      ) : (
-                        <Spin />
-                      )}
                     </div>
-                  ),
-                },
-              ]}
-            />
-          )
-        )}
+                  );
+                })(),
+              },
+              {
+                key: 'commission',
+                label: 'Hoa Hồng',
+                children: (
+                  <div>
+                    <div style={{ marginBottom: 20 }}>
+                      <DatePicker
+                        picker="month"
+                        value={commissionMonth}
+                        onChange={(date) => {
+                          setCommissionMonth(date);
+                          loadCommissionData(
+                            selectedStaff.id,
+                            selectedStaff.commissionRate ?? selectedStaff.commission_rate ?? 0,
+                            date
+                          );
+                        }}
+                        format="MM/YYYY"
+                      />
+                    </div>
+                    {commissionData ? (
+                      <>
+                        <Row gutter={16} style={{ marginBottom: 20 }}>
+                          <Col span={8}>
+                            <Statistic
+                              title="Doanh Số"
+                              value={commissionData.totalRevenue}
+                              suffix="₫"
+                              formatter={(v) =>
+                                `${Number(v).toLocaleString('vi-VN')}`
+                              }
+                            />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic
+                              title="Tỷ Lệ"
+                              value={Number(commissionData.commissionRate || 0).toFixed(1)}
+                              suffix="%"
+                            />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic
+                              title="Hoa Hồng"
+                              value={commissionData.totalCommission}
+                              suffix="₫"
+                              formatter={(v) =>
+                                `${Number(v).toLocaleString('vi-VN')}`
+                              }
+                              valueStyle={{
+                                color: '#ff69b4',
+                                fontWeight: 'bold',
+                              }}
+                            />
+                          </Col>
+                        </Row>
+                        {commissionData.transactions.length > 0 ? (
+                          <Table
+                            columns={[
+                              {
+                                title: 'Ngày',
+                                dataIndex: 'date',
+                                key: 'date',
+                                width: 120,
+                                render: formatDate,
+                              },
+                              {
+                                title: 'Số Tiền',
+                                dataIndex: 'amount',
+                                key: 'amount',
+                                width: 130,
+                                render: (v) =>
+                                  `${Number(v || 0).toLocaleString('vi-VN')} ₫`,
+                              },
+                              {
+                                title: 'Hoa Hồng',
+                                key: 'commission',
+                                width: 130,
+                                render: (_, record) => {
+                                  const comm =
+                                    (Number(record.amount) || 0) *
+                                    (Number(commissionData.commissionRate) || 0) / 100;
+                                  return `${Number(comm).toLocaleString('vi-VN')} ₫`;
+                                },
+                              },
+                            ]}
+                            dataSource={commissionData.transactions.map(
+                              (t, i) => ({
+                                ...t,
+                                key: t.id || i,
+                              })
+                            )}
+                            pagination={false}
+                            size="small"
+                          />
+                        ) : (
+                          <Empty description="Không có doanh số" />
+                        )}
+                      </>
+                    ) : (
+                      <Spin />
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        ) : null}
       </Drawer>
 
+      {/* Check In Modal */}
       <Modal
         title={`Chấm Công - ${selectedStaff?.name}`}
         open={isCheckInModalOpen}
@@ -692,18 +1018,19 @@ export default function Staff() {
           form={checkInForm}
           layout="vertical"
           onFinish={handleCheckIn}
-          onValuesChange={(changedValues) => {
-            // Auto-calculate hours if both times are set
-            if (changedValues.checkOutTime && checkInForm.getFieldValue('checkInTime')) {
+          onValuesChange={(changed) => {
+            if (changed.checkOutTime && checkInForm.getFieldValue('checkInTime')) {
               const checkIn = checkInForm.getFieldValue('checkInTime');
-              const checkOut = changedValues.checkOutTime;
-              const hours = checkOut.diff(checkIn, 'hour', true);
-              checkInForm.setFieldsValue({ hoursWorked: parseFloat(hours.toFixed(1)) });
+              const checkOut = changed.checkOutTime;
+              const hours = parseFloat(
+                checkOut.diff(checkIn, 'hour', true).toFixed(1)
+              );
+              checkInForm.setFieldsValue({ hoursWorked: hours });
             }
           }}
         >
           <Form.Item
-            label="Giờ Check In (*)  - Tự động lấy giờ hiện tại, có thể sửa"
+            label="Giờ Check In (*)"
             name="checkInTime"
             rules={[{ required: true, message: 'Nhập giờ check in' }]}
           >
@@ -713,26 +1040,20 @@ export default function Staff() {
               placeholder="Chọn giờ check in"
             />
           </Form.Item>
-          <Form.Item
-            label="Giờ Check Out (tuỳ chọn)"
-            name="checkOutTime"
-          >
+          <Form.Item label="Giờ Check Out (tuỳ chọn)" name="checkOutTime">
             <DatePicker
               showTime
               format="DD/MM/YYYY HH:mm"
               placeholder="Chọn giờ check out"
             />
           </Form.Item>
-          <Form.Item
-            label="Giờ Làm (tự động tính nếu có check out)"
-            name="hoursWorked"
-          >
+          <Form.Item label="Giờ Làm" name="hoursWorked">
             <InputNumber
               min={0}
               max={24}
               step={0.5}
               style={{ width: '100%' }}
-              placeholder="0"
+              placeholder="Tự động tính nếu có check out"
             />
           </Form.Item>
           <Form.Item
@@ -749,10 +1070,7 @@ export default function Staff() {
               ]}
             />
           </Form.Item>
-          <Form.Item
-            label="Ghi Chú"
-            name="notes"
-          >
+          <Form.Item label="Ghi Chú" name="notes">
             <Input.TextArea rows={2} placeholder="Ghi chú thêm nếu cần" />
           </Form.Item>
         </Form>
