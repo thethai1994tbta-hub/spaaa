@@ -374,7 +374,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   const filteredExpenses = expenseFilter === 'all'
     ? expenseTransactions
-    : expenseTransactions.filter(t => t.expenseCategory === expenseFilter);
+    : expenseTransactions.filter(t => (t.expenseCategory || 'other') === expenseFilter);
 
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
@@ -884,7 +884,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       icon={<PlusOutlined />}
                       onClick={() => {
                         expenseForm.resetFields();
-                        expenseForm.setFieldsValue({ date: dayjs(), payment_method: 'cash' });
+                        expenseForm.setFieldsValue({ date: dayjs(), payment_method: 'cash', category: 'other' });
                         setIsExpenseModalOpen(true);
                       }}
                       style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
@@ -921,7 +921,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                           );
                         },
                         filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
-                        onFilter: (value, record) => record.expenseCategory === value,
+                        onFilter: (value, record) => (record.expenseCategory || 'other') === value,
                       },
                       {
                         title: 'Số Tiền', key: 'amount', width: 140,

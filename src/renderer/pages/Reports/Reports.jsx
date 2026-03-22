@@ -903,7 +903,7 @@ export default function Reports() {
                             return <Tag color="red">{cat ? `${cat.icon} ${cat.label}` : r.expenseCategory || 'Khác'}</Tag>;
                           },
                           filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
-                          onFilter: (value, record) => record.expenseCategory === value,
+                          onFilter: (value, record) => (record.expenseCategory || 'other') === value,
                         },
                         {
                           title: 'Số Tiền', key: 'amount', width: 140,
