@@ -59,6 +59,17 @@ const formatTime = (val) => {
   return d ? dayjs(d).format('HH:mm') : '-';
 };
 
+// Late threshold: 09:00
+const LATE_HOUR = 9;
+const LATE_MINUTE = 0;
+
+const getAutoStatus = (checkInTime) => {
+  if (!checkInTime) return 'present';
+  const t = dayjs(checkInTime);
+  const threshold = t.clone().hour(LATE_HOUR).minute(LATE_MINUTE).second(0);
+  return t.isAfter(threshold) ? 'late' : 'present';
+};
+
 export default function Staff() {
   const { invoke } = useAPI();
   const [form] = Form.useForm();
@@ -439,11 +450,12 @@ export default function Staff() {
             size="small"
             icon={<LoginOutlined />}
             onClick={() => {
+              const now = dayjs();
               setSelectedStaff(record);
               setIsCheckInModalOpen(true);
               checkInForm.setFieldsValue({
-                checkInTime: dayjs(),
-                status: 'present',
+                checkInTime: now,
+                status: getAutoStatus(now),
               });
             }}
             style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
@@ -648,7 +660,11 @@ export default function Staff() {
             {!isEditMode && (
               <>
                 <Button
-                  onClick={() => setIsCheckInModalOpen(true)}
+                  onClick={() => {
+                    const now = dayjs();
+                    checkInForm.setFieldsValue({ checkInTime: now, status: getAutoStatus(now) });
+                    setIsCheckInModalOpen(true);
+                  }}
                   icon={<LoginOutlined />}
                   style={{ color: '#ff69b4', borderColor: '#ff69b4' }}
                 >
@@ -1019,6 +1035,11 @@ export default function Staff() {
           layout="vertical"
           onFinish={handleCheckIn}
           onValuesChange={(changed) => {
+            // Auto-detect late status when check-in time changes
+            if (changed.checkInTime) {
+              checkInForm.setFieldsValue({ status: getAutoStatus(changed.checkInTime) });
+            }
+            // Auto-calculate hours worked when check-out time changes
             if (changed.checkOutTime && checkInForm.getFieldValue('checkInTime')) {
               const checkIn = checkInForm.getFieldValue('checkInTime');
               const checkOut = changed.checkOutTime;
@@ -1030,7 +1051,7 @@ export default function Staff() {
           }}
         >
           <Form.Item
-            label="Giờ Check In (*)"
+            label={<span>Giờ Check In (*) <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>— Sau 09:00 tự động "Đi Muộn"</span></span>}
             name="checkInTime"
             rules={[{ required: true, message: 'Nhập giờ check in' }]}
           >
