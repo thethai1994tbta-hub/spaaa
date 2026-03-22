@@ -127,7 +127,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
       // Bank config is optional - don't let it break loading
       try {
         const bankRes = await invoke('db:settings:get', 'bank');
-        setBankConfig(bankRes);
+        if (bankRes.success && bankRes.data) setBankConfig(bankRes.data);
       } catch { /* not configured yet */ }
       try {
         const spaRes = await invoke('db:settings:get', 'spa');
