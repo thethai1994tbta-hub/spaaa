@@ -373,7 +373,7 @@ export default function Inventory() {
               setSelectedItem(record);
               setSelectedType('products');
               setIsEditMode(true);
-              setDetailDrawerOpen(true);
+              setIsModalOpen(true);
               form.setFieldsValue(record);
             }}
           >
