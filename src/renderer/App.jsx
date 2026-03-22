@@ -67,6 +67,8 @@ const App = () => {
               style={{
                 border: 'none',
                 background: isDarkMode ? '#1f1f1f' : '#fff',
+                fontSize: '15px',
+                fontWeight: 500,
               }}
               itemLabelColor={isDarkMode ? '#ccc' : '#1f1f1f'}
               selectedItemBg={isDarkMode ? 'rgba(255,105,180,0.15)' : 'rgba(255,105,180,0.1)'}
@@ -145,7 +147,7 @@ const App = () => {
                   style={{
                     color: isDarkMode ? '#fff' : '#1f1f1f',
                     fontSize: '16px',
-                    fontWeight: '600',
+                    fontWeight: '700',
                   }}
                 >
                   Hệ Thống Quản Lý SPA VIP
