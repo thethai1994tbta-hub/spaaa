@@ -188,6 +188,18 @@ function setupIPC() {
     }
   });
 
+  ipcMain.handle('db:stock-movements:add', async (event, movement) => {
+    try {
+      const result = await runQuery(
+        'INSERT INTO stock_movements (item_id, item_name, date, quantity, notes, type, user) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [movement.itemId, movement.itemName, new Date(movement.date).toISOString(), movement.quantity, movement.notes || null, movement.type || 'import', movement.user || 'System']
+      );
+      return { success: true, id: result.id };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('db:query', async (event, table, conditions) => {
     try {
       let query = `SELECT * FROM ${table}`;

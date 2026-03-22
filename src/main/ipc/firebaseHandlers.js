@@ -220,6 +220,19 @@ function setupFirebaseIPC() {
     }
   });
 
+  // ==================== STOCK MOVEMENTS ====================
+  ipcMain.handle('db:stock-movements:add', async (event, movement) => {
+    return addDocument('STOCK_MOVEMENTS', {
+      itemId: movement.itemId,
+      itemName: movement.itemName,
+      date: new Date(movement.date),
+      quantity: movement.quantity,
+      notes: movement.notes || null,
+      type: movement.type || 'import',
+      user: movement.user || 'System',
+    });
+  });
+
   // ==================== GENERIC QUERY ====================
   ipcMain.handle('db:query', async (event, collection, conditions) => {
     return query(collection, conditions);

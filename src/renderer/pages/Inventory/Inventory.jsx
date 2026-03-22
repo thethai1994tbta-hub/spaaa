@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Space, Popconfirm, Empty, InputNumber, Tag, Descriptions } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Space, Popconfirm, Empty, InputNumber, Tag, Descriptions, Tabs } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, AlertOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 
@@ -13,6 +13,7 @@ export default function Inventory() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
+  const [stockMovements, setStockMovements] = useState([]);
   const [form] = Form.useForm();
   const [stockInForm] = Form.useForm();
 
@@ -31,6 +32,18 @@ export default function Inventory() {
       message.error('Lỗi tải kho: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStockMovements = async (itemId) => {
+    try {
+      const result = await invoke('db:query', 'STOCK_MOVEMENTS', [
+        { field: 'itemId', operator: '==', value: itemId }
+      ]);
+      setStockMovements((result.data || []).sort((a, b) => new Date(b.date) - new Date(a.date)));
+    } catch (error) {
+      console.error('[Inventory] Error loading movements:', error);
+      setStockMovements([]);
     }
   };
 
@@ -87,6 +100,9 @@ export default function Inventory() {
   const handleStockIn = async (values) => {
     try {
       const newQuantity = (selectedItem.quantity || 0) + (values.quantity || 0);
+      const now = new Date();
+
+      // Update quantity
       await invoke('db:inventory:update', selectedItem.id, {
         name: selectedItem.name,
         category: selectedItem.category || '',
@@ -95,11 +111,29 @@ export default function Inventory() {
         reorderLevel: selectedItem.reorderLevel || 0,
         supplier: selectedItem.supplier || '',
       });
-      message.success(`Nhập hàng thành công! Số lượng mới: ${newQuantity}`);
+
+      // Log movement
+      const movementDoc = {
+        itemId: selectedItem.id,
+        itemName: selectedItem.name,
+        date: now.toISOString(),
+        quantity: values.quantity,
+        notes: values.notes || '',
+        type: 'import',
+        user: 'Hệ Thống',
+      };
+
+      try {
+        await invoke('db:stock-movements:add', movementDoc);
+      } catch (e) {
+        console.log('Stock movement log:', e.message);
+      }
+
+      message.success(`Nhập hàng thành công! SL mới: ${newQuantity}`);
       stockInForm.resetFields();
       setIsStockInModalOpen(false);
       loadItems();
-      setDetailDrawerOpen(false);
+      loadStockMovements(selectedItem.id);
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -139,6 +173,14 @@ export default function Inventory() {
   };
 
   const isLowStock = (item) => item.quantity < item.reorderLevel;
+
+  const openItemDetail = (item) => {
+    setSelectedItem(item);
+    setIsEditMode(false);
+    setDetailDrawerOpen(true);
+    form.setFieldsValue(item);
+    loadStockMovements(item.id);
+  };
 
   const filteredItems = items.filter(item =>
     (item.name?.toLowerCase().includes(searchText.toLowerCase())) ||
@@ -208,12 +250,7 @@ export default function Inventory() {
           <Button
             type="link"
             size="small"
-            onClick={() => {
-              setSelectedItem(record);
-              setIsEditMode(false);
-              setDetailDrawerOpen(true);
-              form.setFieldsValue(record);
-            }}
+            onClick={() => openItemDetail(record)}
             style={{ color: '#ff69b4' }}
           >
             Chi Tiết
@@ -346,7 +383,7 @@ export default function Inventory() {
       <Drawer
         title={selectedItem?.name}
         placement="right"
-        width={500}
+        width={600}
         onClose={() => {
           setDetailDrawerOpen(false);
           setIsEditMode(false);
@@ -419,24 +456,67 @@ export default function Inventory() {
           </Form>
         ) : (
           selectedItem && (
-            <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="Tên">{selectedItem.name}</Descriptions.Item>
-              <Descriptions.Item label="Danh Mục">{selectedItem.category || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Số Lượng">{selectedItem.quantity || 0}</Descriptions.Item>
-              <Descriptions.Item label="Mức Tái Đặt">{selectedItem.reorderLevel || 0}</Descriptions.Item>
-              <Descriptions.Item label="Giá/Cái">
-                {selectedItem.unitPrice ? `${Number(selectedItem.unitPrice).toLocaleString('vi-VN')} ₫` : '0 ₫'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Nhà Cung Cấp">{selectedItem.supplier || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Giá Trị Tồn Kho">
-                <strong>{((selectedItem.quantity || 0) * (selectedItem.unitPrice || 0)).toLocaleString('vi-VN')} ₫</strong>
-              </Descriptions.Item>
-              {isLowStock(selectedItem) && (
-                <Descriptions.Item label="Trạng Thái">
-                  <Tag color="red">Tồn Thấp</Tag>
-                </Descriptions.Item>
-              )}
-            </Descriptions>
+            <Tabs
+              items={[
+                {
+                  key: 'info',
+                  label: 'Thông Tin',
+                  children: (
+                    <Descriptions column={1} bordered size="small">
+                      <Descriptions.Item label="Tên">{selectedItem.name}</Descriptions.Item>
+                      <Descriptions.Item label="Danh Mục">{selectedItem.category || '-'}</Descriptions.Item>
+                      <Descriptions.Item label="Số Lượng">{selectedItem.quantity || 0}</Descriptions.Item>
+                      <Descriptions.Item label="Mức Tái Đặt">{selectedItem.reorderLevel || 0}</Descriptions.Item>
+                      <Descriptions.Item label="Giá/Cái">
+                        {selectedItem.unitPrice ? `${Number(selectedItem.unitPrice).toLocaleString('vi-VN')} ₫` : '0 ₫'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Nhà Cung Cấp">{selectedItem.supplier || '-'}</Descriptions.Item>
+                      <Descriptions.Item label="Giá Trị Tồn Kho">
+                        <strong>{((selectedItem.quantity || 0) * (selectedItem.unitPrice || 0)).toLocaleString('vi-VN')} ₫</strong>
+                      </Descriptions.Item>
+                      {isLowStock(selectedItem) && (
+                        <Descriptions.Item label="Trạng Thái">
+                          <Tag color="red">Tồn Thấp</Tag>
+                        </Descriptions.Item>
+                      )}
+                    </Descriptions>
+                  ),
+                },
+                {
+                  key: 'history',
+                  label: 'Lịch Sử Nhập',
+                  children: (
+                    <Table
+                      columns={[
+                        {
+                          title: 'Ngày Giờ',
+                          dataIndex: 'date',
+                          key: 'date',
+                          width: 180,
+                          render: (date) => date ? new Date(date).toLocaleString('vi-VN') : '-',
+                        },
+                        {
+                          title: 'SL Nhập',
+                          dataIndex: 'quantity',
+                          key: 'quantity',
+                          width: 80,
+                        },
+                        {
+                          title: 'Ghi Chú',
+                          dataIndex: 'notes',
+                          key: 'notes',
+                          render: (notes) => notes || '-',
+                        },
+                      ]}
+                      dataSource={stockMovements.map((m, i) => ({ ...m, key: m.id || i }))}
+                      pagination={false}
+                      size="small"
+                      locale={{ emptyText: 'Không có lịch sử' }}
+                    />
+                  ),
+                },
+              ]}
+            />
           )
         )}
       </Drawer>
