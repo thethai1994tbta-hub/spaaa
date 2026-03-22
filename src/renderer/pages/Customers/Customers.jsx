@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form, Input, message, Spin, Drawer, Tabs, Descriptions, Space, Popconfirm, Empty, Select, DatePicker, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, CalendarOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, DownloadOutlined, SearchOutlined, CalendarOutlined, DollarOutlined } from '@ant-design/icons';
 import { useAPI } from '../../hooks/useAPI';
 import { useAuth } from '../../context/AuthContext';
 import dayjs from 'dayjs';
 
-export default function Customers() {
+export default function Customers({ onGoToPayment }) {
   const { invoke } = useAPI();
   const { guardAction } = useAuth();
   const [customers, setCustomers] = useState([]);
@@ -442,9 +442,20 @@ export default function Customers() {
     {
       title: 'Thao Tác',
       key: 'action',
-      width: 150,
+      width: 220,
       render: (_, record) => (
         <Space size="small">
+          {record.status !== 'completed' && record.status !== 'cancelled' && (
+            <Button
+              type="link"
+              size="small"
+              icon={<DollarOutlined />}
+              style={{ color: '#52c41a' }}
+              onClick={() => onGoToPayment?.(record)}
+            >
+              Thanh Toán
+            </Button>
+          )}
           <Button
             type="link"
             size="small"

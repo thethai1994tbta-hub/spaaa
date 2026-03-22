@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs, Button, message, Tooltip, List, Avatar, Progress, Divider } from 'antd';
+import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs, Button, message, Tooltip, List, Avatar, Progress, Divider, Space } from 'antd';
 import {
   CalendarOutlined, ClockCircleOutlined, BellOutlined, SendOutlined,
   UserOutlined, TeamOutlined, ShoppingCartOutlined, WarningOutlined,
@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 
 const COLORS = ['#ff69b4', '#36cfc9', '#597ef7', '#ffc53d', '#ff7a45', '#9254de', '#73d13d', '#f759ab'];
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, onGoToPayment }) {
   const { invoke, loading } = useAPI();
   const [stats, setStats] = useState(null);
   const [bookings, setBookings] = useState([]);
@@ -448,9 +448,14 @@ export default function Dashboard({ onNavigate }) {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                             <span style={{ fontWeight: 600 }}>{getCustomerName(b)}</span>
-                            <Tooltip title="Nhắc qua Zalo">
-                              <Button type="link" size="small" icon={<SendOutlined />} onClick={(e) => { e.stopPropagation(); sendZaloReminder(b); }} style={{ color: '#0068ff', padding: 0 }} />
-                            </Tooltip>
+                            <Space size={4}>
+                              <Tooltip title="Thanh toán">
+                                <Button type="link" size="small" icon={<DollarOutlined />} onClick={(e) => { e.stopPropagation(); onGoToPayment?.(b); }} style={{ color: '#52c41a', padding: 0 }} />
+                              </Tooltip>
+                              <Tooltip title="Nhắc qua Zalo">
+                                <Button type="link" size="small" icon={<SendOutlined />} onClick={(e) => { e.stopPropagation(); sendZaloReminder(b); }} style={{ color: '#0068ff', padding: 0 }} />
+                              </Tooltip>
+                            </Space>
                           </div>
                           <div style={{ fontSize: 12, color: '#595959' }}>
                             {getServiceName(b) && <div>Dịch vụ: {getServiceName(b)}</div>}

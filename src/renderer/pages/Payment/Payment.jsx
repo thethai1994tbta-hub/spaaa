@@ -21,7 +21,7 @@ const getVietQRUrl = (bankConfig, amount, description) => {
   return `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-compact2.png?${params.toString()}`;
 };
 
-export default function Payment() {
+export default function Payment({ pendingBooking, onClearPending }) {
   const { invoke } = useAPI();
 
   // Data lists
@@ -41,6 +41,7 @@ export default function Payment() {
   const [pointsUsed, setPointsUsed] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
+  const [linkedBookingId, setLinkedBookingId] = useState(null);
 
   // UI
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,43 @@ export default function Payment() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-fill from pending booking
+  useEffect(() => {
+    if (pendingBooking && servicesList.length > 0 && customers.length > 0) {
+      const custId = pendingBooking.customer_id || pendingBooking.customerId;
+      const svcId = pendingBooking.service_id || pendingBooking.serviceId;
+      const staffId = pendingBooking.staff_id || pendingBooking.staffId;
+
+      // Set customer
+      if (custId) setSelectedCustomer(custId);
+
+      // Add service to cart
+      const svc = servicesList.find(s => s.id === svcId);
+      if (svc) {
+        const staff = staffList.find(s => s.id === staffId);
+        setCartItems([{
+          key: Date.now(),
+          type: 'service',
+          id: svc.id,
+          name: svc.name,
+          price: Number(svc.price) || 0,
+          quantity: 1,
+          staffId: staffId || null,
+          staffName: staff?.name || '',
+        }]);
+      }
+
+      // Set notes
+      const bookingNotes = pendingBooking.notes || '';
+      setNotes(bookingNotes ? `Từ lịch hẹn: ${bookingNotes}` : 'Từ lịch hẹn');
+
+      // Track booking ID to mark completed after payment
+      setLinkedBookingId(pendingBooking.id);
+      setActiveTab('new');
+      onClearPending?.();
+    }
+  }, [pendingBooking, servicesList, customers]);
 
   const loadData = async () => {
     setLoading(true);
@@ -257,6 +295,14 @@ export default function Payment() {
           customerPhone: isWalkIn ? '' : (customer?.phone || ''),
         });
 
+        // Mark linked booking as completed
+        if (linkedBookingId) {
+          try {
+            await invoke('db:bookings:update', linkedBookingId, { status: 'completed' });
+          } catch {}
+          setLinkedBookingId(null);
+        }
+
         message.success('Thanh toán thành công!');
         setReceiptModal(true);
         resetForm();
@@ -277,6 +323,7 @@ export default function Payment() {
     setPointsUsed(0);
     setPaymentMethod('cash');
     setNotes('');
+    setLinkedBookingId(null);
   };
 
   // ============ CART TABLE ============

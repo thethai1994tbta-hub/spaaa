@@ -30,7 +30,13 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [spaName, setSpaName] = useState('SPA VIP');
+  const [pendingBooking, setPendingBooking] = useState(null);
   const { isUnlocked, lock, requireAuth } = useAuth();
+
+  const goToPayment = (booking) => {
+    setPendingBooking(booking);
+    setCurrentPage('payment');
+  };
 
   useEffect(() => {
     const loadSpaName = async () => {
@@ -202,10 +208,10 @@ const App = () => {
                 minHeight: 'calc(100vh - 134px)',
               }}
             >
-              {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
-              {currentPage === 'customers' && <Customers />}
+              {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} onGoToPayment={goToPayment} />}
+              {currentPage === 'customers' && <Customers onGoToPayment={goToPayment} />}
               {currentPage === 'staff' && <Staff />}
-              {currentPage === 'payment' && <Payment />}
+              {currentPage === 'payment' && <Payment pendingBooking={pendingBooking} onClearPending={() => setPendingBooking(null)} />}
               {currentPage === 'inventory' && <Inventory />}
               {currentPage === 'reports' && <Reports />}
               {currentPage === 'settings' && <Settings onSpaNameChange={setSpaName} />}
