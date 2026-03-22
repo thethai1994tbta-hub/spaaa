@@ -258,7 +258,7 @@ function setupFirebaseIPC() {
 
   // ==================== ATTENDANCE ====================
   ipcMain.handle('db:attendance:getAll', async () => {
-    return getAllDocuments(COLLECTIONS.ATTENDANCE, { field: 'date', direction: 'desc' });
+    return getAllDocuments(COLLECTIONS.ATTENDANCE);
   });
 
   ipcMain.handle('db:attendance:delete', async (event, id) => {

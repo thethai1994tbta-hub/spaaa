@@ -169,15 +169,27 @@ export default function Settings({ onSpaNameChange }) {
     setResetting(true);
     try {
       const result = await invoke(`db:${collection}:getAll`);
-      const items = result.data || result || [];
+      if (!result.success) {
+        message.error(`Lỗi lấy dữ liệu ${label}: ${result.error || 'Unknown'}`);
+        setResetting(false);
+        return;
+      }
+      const items = result.data || [];
+      if (items.length === 0) {
+        message.info(`Không có ${label} nào để xóa`);
+        setResetting(false);
+        return;
+      }
       let deleted = 0;
       for (const item of items) {
         try {
           await invoke(`db:${collection}:delete`, item.id);
           deleted++;
-        } catch {}
+        } catch (e) {
+          console.error(`Lỗi xóa ${label}:`, e);
+        }
       }
-      message.success(`Đã xóa ${deleted} ${label}`);
+      message.success(`Đã xóa ${deleted}/${items.length} ${label}`);
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     } finally {
