@@ -158,6 +158,10 @@ function setupFirebaseIPC() {
     return updateDocument(COLLECTIONS.TRANSACTIONS, id, transaction);
   });
 
+  ipcMain.handle('db:transactions:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.TRANSACTIONS, id);
+  });
+
   // ==================== INVENTORY ====================
   ipcMain.handle('db:inventory:getAll', async () => {
     return getAllDocuments(COLLECTIONS.INVENTORY, { field: 'name', direction: 'asc' });

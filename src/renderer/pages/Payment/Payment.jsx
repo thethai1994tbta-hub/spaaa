@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
+import { useAuth } from '../../context/AuthContext';
 
 const getVietQRUrl = (bankConfig, amount, description) => {
   if (!bankConfig?.bankId || !bankConfig?.accountNo) return null;
@@ -24,6 +25,7 @@ const getVietQRUrl = (bankConfig, amount, description) => {
 
 export default function Payment({ pendingBooking, onClearPending }) {
   const { invoke } = useAPI();
+  const { guardAction } = useAuth();
 
   // Data lists
   const [customers, setCustomers] = useState([]);
@@ -518,6 +520,31 @@ export default function Payment({ pendingBooking, onClearPending }) {
       dataIndex: 'notes',
       key: 'notes',
       render: (v) => v || '-',
+    },
+    {
+      title: '',
+      key: 'action',
+      width: 50,
+      render: (_, r) => (
+        <Popconfirm
+          title="Xóa giao dịch này?"
+          description="Hành động này không thể hoàn tác."
+          onConfirm={guardAction(async () => {
+            try {
+              await invoke('db:transactions:delete', r.id);
+              message.success('Đã xóa giao dịch');
+              loadData();
+            } catch (error) {
+              message.error('Lỗi: ' + error.message);
+            }
+          })}
+          okText="Xóa"
+          cancelText="Hủy"
+          okButtonProps={{ danger: true }}
+        >
+          <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+        </Popconfirm>
+      ),
     },
   ];
 
