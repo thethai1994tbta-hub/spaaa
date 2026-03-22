@@ -207,6 +207,21 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
     .slice(0, 5);
 
   // ============ RENDER ============
+  // Calculate stats from filtered transactions (frontend, no backend dependency)
+  const todayRevenue = transactions
+    .filter(t => {
+      const d = t.date || t.createdAt;
+      return d && dayjs(d).format('YYYY-MM-DD') === todayStr;
+    })
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+  const monthRevenue = transactions
+    .filter(t => {
+      const d = t.date || t.createdAt;
+      return d && dayjs(d).format('YYYY-MM') === now.format('YYYY-MM');
+    })
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
   if (loading) return <Spin style={{ display: 'flex', justifyContent: 'center', marginTop: 100 }} />;
 
   return (
@@ -219,10 +234,11 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
           <Card hoverable onClick={() => onNavigate?.('reports')} style={{ borderLeft: '4px solid #ff69b4', cursor: 'pointer' }}>
             <Statistic
               title="Doanh Thu Hôm Nay"
-              value={stats?.todayRevenue || 0}
+              value={todayRevenue}
               suffix="₫"
               prefix={<DollarOutlined style={{ color: '#ff69b4' }} />}
               valueStyle={{ color: '#ff69b4' }}
+              formatter={(v) => Number(v).toLocaleString('vi-VN')}
             />
           </Card>
         </Col>
@@ -230,10 +246,11 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
           <Card hoverable onClick={() => onNavigate?.('reports')} style={{ borderLeft: '4px solid #597ef7', cursor: 'pointer' }}>
             <Statistic
               title="Doanh Thu Tháng Này"
-              value={stats?.monthRevenue || 0}
+              value={monthRevenue}
               suffix="₫"
               prefix={<RiseOutlined style={{ color: '#597ef7' }} />}
               valueStyle={{ color: '#597ef7' }}
+              formatter={(v) => Number(v).toLocaleString('vi-VN')}
             />
           </Card>
         </Col>
@@ -251,7 +268,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
           <Card hoverable onClick={() => onNavigate?.('customers')} style={{ borderLeft: '4px solid #ffc53d', cursor: 'pointer' }}>
             <Statistic
               title="Tổng Khách Hàng"
-              value={stats?.totalCustomers || 0}
+              value={customers.length}
               prefix={<UserOutlined style={{ color: '#ffc53d' }} />}
               valueStyle={{ color: '#ffc53d' }}
             />
