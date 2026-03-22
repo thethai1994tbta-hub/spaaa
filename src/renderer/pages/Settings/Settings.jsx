@@ -70,21 +70,16 @@ export default function Settings() {
 
   // ============ UNLOCK ============
   const handleUnlock = async (values) => {
-    try {
-      const securityRes = await invoke('db:settings:get', 'security');
-      const stored = securityRes.success ? securityRes.data : {};
-      const password = stored.password || '123456'; // default password
+    const stored = await safeFetch('security');
+    const password = stored.password || '123456'; // default password
 
-      if (values.password === password) {
-        setIsLocked(false);
-        setShowPasswordModal(false);
-        passwordForm.resetFields();
-        message.success('Đã mở khóa cài đặt');
-      } else {
-        message.error('Sai mật khẩu');
-      }
-    } catch (error) {
-      message.error('Lỗi: ' + error.message);
+    if (values.password === password) {
+      setIsLocked(false);
+      setShowPasswordModal(false);
+      passwordForm.resetFields();
+      message.success('Đã mở khóa cài đặt');
+    } else {
+      message.error('Sai mật khẩu');
     }
   };
 
@@ -125,8 +120,7 @@ export default function Settings() {
 
   const handleChangePassword = async (values) => {
     try {
-      const securityRes = await invoke('db:settings:get', 'security');
-      const stored = securityRes.success ? securityRes.data : {};
+      const stored = await safeFetch('security');
       const currentPassword = stored.password || '123456';
 
       if (values.currentPassword !== currentPassword) {
