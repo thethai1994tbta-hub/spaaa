@@ -188,6 +188,18 @@ function setupIPC() {
     }
   });
 
+  ipcMain.handle('db:attendance:add', async (event, attendance) => {
+    try {
+      const result = await runQuery(
+        'INSERT INTO attendance (staff_id, staff_name, date, check_in_time, check_out_time, status, notes, hours_worked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [attendance.staffId, attendance.staffName, new Date(attendance.date).toISOString(), new Date(attendance.checkInTime).toISOString(), attendance.checkOutTime ? new Date(attendance.checkOutTime).toISOString() : null, attendance.status || 'present', attendance.notes || null, attendance.hoursWorked || 0]
+      );
+      return { success: true, id: result.id };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('db:stock-movements:add', async (event, movement) => {
     try {
       const result = await runQuery(

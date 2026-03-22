@@ -220,6 +220,20 @@ function setupFirebaseIPC() {
     }
   });
 
+  // ==================== ATTENDANCE ====================
+  ipcMain.handle('db:attendance:add', async (event, attendance) => {
+    return addDocument('ATTENDANCE', {
+      staffId: attendance.staffId,
+      staffName: attendance.staffName,
+      date: new Date(attendance.date),
+      checkInTime: new Date(attendance.checkInTime),
+      checkOutTime: attendance.checkOutTime ? new Date(attendance.checkOutTime) : null,
+      status: attendance.status || 'present',
+      notes: attendance.notes || null,
+      hoursWorked: attendance.hoursWorked || 0,
+    });
+  });
+
   // ==================== STOCK MOVEMENTS ====================
   ipcMain.handle('db:stock-movements:add', async (event, movement) => {
     return addDocument(COLLECTIONS.STOCK_MOVEMENTS, {
