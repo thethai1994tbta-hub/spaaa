@@ -1,6 +1,12 @@
-const { contextBridge, ipcRenderer } = require('electron');
+console.log('[Preload] Starting...');
 
-console.log('[Preload] Loading preload script');
+try {
+  const { contextBridge, ipcRenderer } = require('electron');
+  console.log('[Preload] Imported electron modules');
+} catch (e) {
+  console.error('[Preload] Failed to import electron:', e.message);
+  throw e;
+}
 
 try {
   // Expose IPC to both window.electron and window.ipc for compatibility
