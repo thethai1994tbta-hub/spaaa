@@ -145,8 +145,8 @@ function setupFirebaseIPC() {
       name: item.name,
       category: item.category || null,
       quantity: item.quantity || 0,
-      unitPrice: item.unit_price || 0,
-      reorderLevel: item.reorder_level || 10,
+      unitPrice: item.unitPrice || item.unit_price || 0,
+      reorderLevel: item.reorderLevel || item.reorder_level || 10,
       supplier: item.supplier || null,
     });
   });

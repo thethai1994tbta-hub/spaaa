@@ -123,7 +123,7 @@ function setupIPC() {
     try {
       const result = await runQuery(
         'INSERT INTO inventory (name, category, quantity, unit_price, reorder_level, supplier) VALUES (?, ?, ?, ?, ?, ?)',
-        [item.name, item.category || null, item.quantity || 0, item.unit_price || 0, item.reorder_level || 10, item.supplier || null]
+        [item.name, item.category || null, item.quantity || 0, item.unitPrice || item.unit_price || 0, item.reorderLevel || item.reorder_level || 10, item.supplier || null]
       );
       return { success: true, id: result.id };
     } catch (error) {
