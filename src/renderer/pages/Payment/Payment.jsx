@@ -229,11 +229,16 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const total = Math.max(0, subtotal - discountAmount - pointsDiscount);
 
   const totalCommission = cartItems.reduce((sum, item) => {
-    if (!item.staffId) return sum;
+    if (!item.staffId) {
+      console.log('[Commission] Item has no staffId:', item.name);
+      return sum;
+    }
     const staff = staffList.find(s => s.id === item.staffId);
     const rate = staff?.commissionRate ?? staff?.commission_rate ?? 0;
+    console.log('[Commission] Item:', item.name, 'staffId:', item.staffId, 'staff:', staff?.name, 'rate:', rate, 'price:', item.price);
     return sum + Math.round((item.price * item.quantity * rate) / 100);
   }, 0);
+  console.log('[Commission] totalCommission:', totalCommission);
 
   // ============ SUBMIT ============
   const handlePayment = async () => {
@@ -791,11 +796,12 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       </div>
 
                       {/* Commission info */}
-                      {totalCommission > 0 && (
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
-                          Hoa hồng NV: {totalCommission.toLocaleString('vi-VN')}₫
-                        </div>
-                      )}
+                      <div style={{ fontSize: 12, color: totalCommission > 0 ? '#ff69b4' : '#ccc', marginBottom: 12 }}>
+                        Hoa hồng NV: {totalCommission.toLocaleString('vi-VN')}₫
+                        {cartItems.length > 0 && !cartItems.some(i => i.staffId) && (
+                          <span style={{ color: '#ff4d4f', marginLeft: 8 }}>⚠ Chưa chọn NV!</span>
+                        )}
+                      </div>
 
                       {/* Payment method */}
                       <div style={{ marginBottom: 16 }}>
