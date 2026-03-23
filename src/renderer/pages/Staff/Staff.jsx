@@ -366,24 +366,13 @@ export default function Staff() {
   const loadCommissionData = async (staffId, commissionRate, month = null) => {
     setCommissionData(null);
     try {
-      console.log('[Commission] Loading for staffId:', staffId, 'rate:', commissionRate);
       const result = await invoke('db:query', 'transactions', [
         { field: 'staffId', operator: '==', value: staffId },
       ]);
-      console.log('[Commission] Query result:', JSON.stringify(result).substring(0, 500));
-      if (!result.success && result.error) {
-        console.error('[Commission] Query error:', result.error);
-        message.error('Lỗi tải hoa hồng: ' + result.error);
-        setCommissionData({ totalRevenue: 0, commissionRate, totalCommission: 0, transactions: [] });
-        return;
-      }
       const targetMonth = month || commissionMonth;
       const monthStr = targetMonth.format('YYYY-MM');
-      let txList = Array.isArray(result.data) ? result.data : [];
-      console.log('[Commission] Total transactions for staff:', txList.length);
-      txList.forEach((t, i) => {
-        console.log(`[Commission] tx[${i}]:`, t.transactionType, t.amount, t.commissionAmount, t.date);
-      });
+      // useAPI.invoke() already unwraps result.data, so result IS the data array
+      let txList = Array.isArray(result) ? result : (Array.isArray(result?.data) ? result.data : []);
       const monthTx = txList.filter((t) => {
         if (t.deleted) return false;
         const type = t.transactionType || t.transaction_type;
@@ -401,8 +390,7 @@ export default function Staff() {
         totalCommission,
         transactions: monthTx,
       });
-    } catch (err) {
-      console.error('[Commission] loadCommissionData error:', err);
+    } catch {
       setCommissionData({ totalRevenue: 0, commissionRate, totalCommission: 0, transactions: [] });
     }
   };
