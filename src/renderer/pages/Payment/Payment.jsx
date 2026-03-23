@@ -279,11 +279,13 @@ export default function Payment({ pendingBooking, onClearPending }) {
       // Save for each staff (commission tracking)
       const staffItems = {};
       cartItems.forEach(item => {
+        console.log('[Payment] Cart item:', item.name, 'staffId:', item.staffId);
         if (item.staffId) {
           if (!staffItems[item.staffId]) staffItems[item.staffId] = [];
           staffItems[item.staffId].push(item);
         }
       });
+      console.log('[Payment] staffItems:', JSON.stringify(staffItems, null, 2));
 
       // Create main transaction
       const result = await invoke('db:transactions:add', txData);
@@ -296,13 +298,16 @@ export default function Payment({ pendingBooking, onClearPending }) {
         }
 
         // Create commission entries per staff
+        console.log('[Payment] Creating commission entries, staffItems count:', Object.keys(staffItems).length);
         for (const [staffId, items] of Object.entries(staffItems)) {
           const staff = staffList.find(s => s.id === staffId);
           const rate = staff?.commissionRate ?? staff?.commission_rate ?? 0;
           const staffTotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
           const commission = Math.round((staffTotal * rate) / 100);
 
-          await invoke('db:transactions:add', {
+          console.log('[Payment] Commission entry:', { staffId, staffName: staff?.name, rate, staffTotal, commission });
+
+          const commResult = await invoke('db:transactions:add', {
             customer_id: isWalkIn ? null : selectedCustomer,
             customer_name: isWalkIn ? 'Khách Vãng Lai' : (customer?.name || ''),
             staff_id: staffId,
@@ -313,6 +318,10 @@ export default function Payment({ pendingBooking, onClearPending }) {
             date: new Date().toISOString(),
             notes: `Hoa hồng từ giao dịch`,
           });
+          console.log('[Payment] Commission save result:', commResult);
+          if (!commResult.success && !commResult.id) {
+            console.error('[Payment] Failed to save commission:', commResult.error);
+          }
         }
 
         // Build receipt
