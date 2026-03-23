@@ -39,6 +39,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   // Current transaction
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedStaff, setSelectedStaff] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [discountType, setDiscountType] = useState('fixed');
   const [discountValue, setDiscountValue] = useState(0);
@@ -153,6 +154,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const addServiceToCart = (serviceId) => {
     const svc = servicesList.find(s => s.id === serviceId);
     if (!svc) return;
+    const defaultStaff = selectedStaff ? staffList.find(s => s.id === selectedStaff) : null;
     setCartItems(prev => [...prev, {
       key: Date.now(),
       type: 'service',
@@ -160,14 +162,15 @@ export default function Payment({ pendingBooking, onClearPending }) {
       name: svc.name,
       price: Number(svc.price) || 0,
       quantity: 1,
-      staffId: null,
-      staffName: '',
+      staffId: selectedStaff || null,
+      staffName: defaultStaff?.name || '',
     }]);
   };
 
   const addPackageToCart = (packageId) => {
     const pkg = packagesList.find(p => p.id === packageId);
     if (!pkg) return;
+    const defaultStaff = selectedStaff ? staffList.find(s => s.id === selectedStaff) : null;
     setCartItems(prev => [...prev, {
       key: Date.now(),
       type: 'package',
@@ -176,8 +179,8 @@ export default function Payment({ pendingBooking, onClearPending }) {
       price: Number(pkg.price) || 0,
       quantity: 1,
       sessions: pkg.sessions || 1,
-      staffId: null,
-      staffName: '',
+      staffId: selectedStaff || null,
+      staffName: defaultStaff?.name || '',
     }]);
   };
 
@@ -188,6 +191,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
       message.warning(`${product.name} đã hết hàng`);
       return;
     }
+    const defaultStaff = selectedStaff ? staffList.find(s => s.id === selectedStaff) : null;
     setCartItems(prev => [...prev, {
       key: Date.now(),
       type: 'product',
@@ -196,8 +200,8 @@ export default function Payment({ pendingBooking, onClearPending }) {
       price: Number(product.unitPrice || product.price) || 0,
       quantity: 1,
       maxQuantity: product.quantity || 999,
-      staffId: null,
-      staffName: '',
+      staffId: selectedStaff || null,
+      staffName: defaultStaff?.name || '',
     }]);
   };
 
@@ -215,6 +219,19 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   const removeCartItem = (key) => {
     setCartItems(prev => prev.filter(item => item.key !== key));
+  };
+
+  // Apply selected staff to all cart items
+  const applyStaffToAll = (staffId) => {
+    setSelectedStaff(staffId);
+    if (staffId) {
+      const staff = staffList.find(s => s.id === staffId);
+      setCartItems(prev => prev.map(item => ({
+        ...item,
+        staffId: staffId,
+        staffName: staff?.name || '',
+      })));
+    }
   };
 
   // ============ CALCULATIONS ============
@@ -653,9 +670,27 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       )}
                     </Card>
 
+                    {/* Staff select */}
+                    <Card size="small" style={{ marginBottom: 16 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 8 }}>2. Chọn NV Phục Vụ</div>
+                      <Select
+                        placeholder="Chọn nhân viên phục vụ..."
+                        showSearch
+                        allowClear
+                        optionFilterProp="label"
+                        style={{ width: '100%' }}
+                        value={selectedStaff}
+                        onChange={applyStaffToAll}
+                        options={staffList.map(s => ({
+                          label: `${s.name} (${(s.commissionRate ?? s.commission_rate ?? 0)}%)`,
+                          value: s.id,
+                        }))}
+                      />
+                    </Card>
+
                     {/* Add items */}
                     <Card size="small" style={{ marginBottom: 16 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 8 }}>2. Thêm Dịch Vụ / Gói</div>
+                      <div style={{ fontWeight: 600, marginBottom: 8 }}>3. Thêm Dịch Vụ / Gói</div>
                       <Row gutter={8}>
                         <Col flex="1">
                           <Select
