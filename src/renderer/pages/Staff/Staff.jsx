@@ -369,9 +369,15 @@ export default function Staff() {
       const result = await invoke('db:query', 'transactions', [
         { field: 'staffId', operator: '==', value: staffId },
       ]);
+      if (!result.success && result.error) {
+        console.error('[Commission] Query error:', result.error);
+        message.error('Lỗi tải hoa hồng: ' + result.error);
+        setCommissionData({ totalRevenue: 0, commissionRate, totalCommission: 0, transactions: [] });
+        return;
+      }
       const targetMonth = month || commissionMonth;
       const monthStr = targetMonth.format('YYYY-MM');
-      let txList = result.data || result || [];
+      let txList = Array.isArray(result.data) ? result.data : [];
       const monthTx = txList.filter((t) => {
         if (t.deleted) return false;
         const type = t.transactionType || t.transaction_type;
@@ -389,7 +395,8 @@ export default function Staff() {
         totalCommission,
         transactions: monthTx,
       });
-    } catch {
+    } catch (err) {
+      console.error('[Commission] loadCommissionData error:', err);
       setCommissionData({ totalRevenue: 0, commissionRate, totalCommission: 0, transactions: [] });
     }
   };
