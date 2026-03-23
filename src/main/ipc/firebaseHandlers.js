@@ -81,13 +81,20 @@ function setupFirebaseIPC() {
       email: staff.email || null,
       position: staff.position || null,
       salary: staff.salary || 0,
-      commissionRate: staff.commission_rate || 0.1,
+      commissionRate: Number(staff.commission_rate ?? staff.commissionRate) || 0,
       active: true,
     });
   });
 
   ipcMain.handle('db:staff:update', async (event, id, staff) => {
-    return updateDocument(COLLECTIONS.STAFF, id, staff);
+    return updateDocument(COLLECTIONS.STAFF, id, {
+      name: staff.name,
+      phone: staff.phone || null,
+      email: staff.email || null,
+      position: staff.position || null,
+      salary: staff.salary || 0,
+      commissionRate: Number(staff.commission_rate ?? staff.commissionRate) || 0,
+    });
   });
 
   ipcMain.handle('db:staff:delete', async (event, id) => {
