@@ -12,6 +12,9 @@
     "!node_modules/sqlite3/src/**/*"
   ],
   "npmRebuild": false,
+  "asarUnpack": [
+    "public/preload.js"
+  ],
   "directories": {
     "buildResources": "public/images"
   },

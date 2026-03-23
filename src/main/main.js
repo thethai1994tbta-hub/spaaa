@@ -19,15 +19,10 @@ let useFirebase = false;
 
 function createWindow() {
   // Resolve preload path - handle both dev and prod
-  let preloadPath;
-  if (isDev) {
-    // In development: src/main/main.js -> ../../public/preload.js
-    preloadPath = path.resolve(__dirname, '../../public/preload.js');
-  } else {
-    // In production: app in dist folder
-    preloadPath = path.resolve(__dirname, '../../public/preload.js');
-  }
+  const appRoot = isDev ? path.resolve(__dirname, '../..') : app.getAppPath();
+  const preloadPath = path.join(appRoot, 'public', 'preload.js');
 
+  console.log('[APP] App root:', appRoot);
   console.log('[APP] Preload path:', preloadPath);
   console.log('[APP] File exists:', fs.existsSync(preloadPath));
 
@@ -40,7 +35,7 @@ function createWindow() {
       preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true,
+      sandbox: false,
     },
     icon: path.join(__dirname, '../../public/images/icon.ico'),
   });
@@ -57,7 +52,7 @@ function createWindow() {
     });
   });
 
-  const url = isDev ? 'http://127.0.0.1:5173' : 'file://' + path.join(__dirname, '../../dist/index.html');
+  const url = isDev ? 'http://127.0.0.1:5173' : 'file://' + path.join(appRoot, 'dist', 'index.html');
   console.log(`[APP] Loading: ${url}`);
   mainWindow.loadURL(url);
 
