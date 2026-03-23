@@ -375,17 +375,18 @@ export default function Staff() {
       const monthTx = txList.filter((t) => {
         if (t.deleted) return false;
         const type = t.transactionType || t.transaction_type;
-        if (type === 'commission') return false;
+        if (type !== 'commission') return false;
         const dateField = t.date || t.createdAt;
         if (!dateField) return false;
         const d = toDate(dateField);
         return d && d.toISOString().startsWith(monthStr);
       });
       const totalRevenue = monthTx.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const totalCommission = monthTx.reduce((sum, t) => sum + (Number(t.commissionAmount ?? t.commission_amount) || 0), 0);
       setCommissionData({
         totalRevenue,
         commissionRate,
-        totalCommission: totalRevenue * (Number(commissionRate) / 100),
+        totalCommission,
         transactions: monthTx,
       });
     } catch {
@@ -1040,8 +1041,8 @@ export default function Staff() {
                               {
                                 title: 'Hoa Hồng', key: 'comm', width: 120,
                                 render: (_, r) => {
-                                  const comm = (Number(r.amount) || 0) * (Number(commissionData.commissionRate) || 0) / 100;
-                                  return <span style={{ color: '#ff69b4' }}>{Number(comm).toLocaleString('vi-VN')} ₫</span>;
+                                  const comm = Number(r.commissionAmount ?? r.commission_amount) || 0;
+                                  return <span style={{ color: '#ff69b4' }}>{comm.toLocaleString('vi-VN')} ₫</span>;
                                 },
                               },
                               {
