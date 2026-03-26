@@ -377,7 +377,7 @@ export default function Staff() {
         if (t.deleted) return false;
         const type = t.transactionType || t.transaction_type;
         if (type !== 'commission') return false;
-        const dateField = t.date || t.createdAt;
+        const dateField = t.date || t.created_at;
         if (!dateField) return false;
         const d = toDate(dateField);
         return d && d.toISOString().startsWith(monthStr);
@@ -1029,7 +1029,7 @@ export default function Staff() {
                             columns={[
                               {
                                 title: 'Ngày', key: 'date', width: 120,
-                                render: (_, r) => formatDate(r.date || r.createdAt),
+                                render: (_, r) => formatDate(r.date || r.created_at),
                               },
                               {
                                 title: 'Khách Hàng', key: 'customer', width: 130,

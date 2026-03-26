@@ -145,7 +145,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
       const dayRevenue = transactions
         .filter(t => {
           if (t.transactionType === 'commission') return false;
-          const txDate = t.date || t.createdAt;
+          const txDate = t.date || t.created_at;
           return txDate && dayjs(txDate).format('YYYY-MM-DD') === dateStr;
         })
         .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -176,7 +176,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
 
   // ============ STAFF STATUS TODAY ============
   const staffStatus = staffList.map(s => {
-    const attendance = attendanceRecords.find(a => a.staffId === s.id);
+    const attendance = attendanceRecords.find(a => (a.staff_id || a.staffId) === s.id);
     const hasBookingNow = todayBookings.some(b => {
       const staffId = b.staff_id || b.staffId;
       if (staffId !== s.id) return false;
@@ -190,7 +190,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
     let statusText = 'Nghỉ';
     let color = '#d9d9d9';
     if (attendance) {
-      if (attendance.checkOutTime) {
+      if (attendance.check_out_time || attendance.checkOutTime) {
         status = 'done';
         statusText = 'Đã về';
         color = '#8c8c8c';
@@ -223,14 +223,14 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
   // Calculate stats from filtered transactions (frontend, no backend dependency)
   const todayRevenue = transactions
     .filter(t => {
-      const d = t.date || t.createdAt;
+      const d = t.date || t.created_at;
       return d && dayjs(d).format('YYYY-MM-DD') === todayStr;
     })
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
   const monthRevenue = transactions
     .filter(t => {
-      const d = t.date || t.createdAt;
+      const d = t.date || t.created_at;
       return d && dayjs(d).format('YYYY-MM') === now.format('YYYY-MM');
     })
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -429,7 +429,7 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
                   <List
                     dataSource={recentTransactions}
                     renderItem={(t) => {
-                      const txDate = t.date || t.createdAt;
+                      const txDate = t.date || t.created_at;
                       return (
                         <List.Item style={{ padding: '6px 0' }}>
                           <List.Item.Meta

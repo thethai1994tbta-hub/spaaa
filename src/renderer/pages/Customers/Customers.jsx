@@ -820,7 +820,7 @@ export default function Customers({ onGoToPayment }) {
                           key: 'date',
                           width: 150,
                           render: (_, record) => {
-                            const d = record.date || record.createdAt;
+                            const d = record.date || record.created_at;
                             return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
                           },
                         },

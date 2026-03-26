@@ -327,12 +327,20 @@ export default function Payment({ pendingBooking, onClearPending }) {
         // Update customer points (skip walk-in)
         if (customer && !isWalkIn) {
           const newPoints = (customer.points || 0) - pointsUsed + pointsEarned;
-          await invoke('db:customers:update', customer.id, { points: newPoints });
+          await invoke('db:customers:update', customer.id, {
+            name: customer.name,
+            phone: customer.phone || null,
+            email: customer.email || null,
+            address: customer.address || null,
+            points: newPoints,
+            notes: customer.notes || null,
+          });
         }
 
         // Create commission entries per staff
-        for (const [staffId, items] of Object.entries(staffItems)) {
-          const staff = staffList.find(s => s.id === staffId);
+        for (const [staffIdStr, items] of Object.entries(staffItems)) {
+          const staffIdNum = Number(staffIdStr);
+          const staff = staffList.find(s => s.id === staffIdNum);
           const rate = staff?.commissionRate ?? staff?.commission_rate ?? 0;
           const staffTotal = items.reduce((s, i) => s + (i.price * i.quantity), 0);
           const commission = Math.round((staffTotal * rate) / 100);
@@ -340,7 +348,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
           await invoke('db:transactions:add', {
             customer_id: isWalkIn ? null : selectedCustomer,
             customer_name: isWalkIn ? 'Khách Vãng Lai' : (customer?.name || ''),
-            staff_id: staffId,
+            staff_id: staffIdNum,
             staff_name: staff?.name || '',
             amount: staffTotal,
             commission_amount: commission,
@@ -440,13 +448,13 @@ export default function Payment({ pendingBooking, onClearPending }) {
 
   const filteredExpenses = expenseFilter === 'all'
     ? expenseTransactions
-    : expenseTransactions.filter(t => (t.expenseCategory || 'other') === expenseFilter);
+    : expenseTransactions.filter(t => (t.expense_category || t.expenseCategory || 'other') === expenseFilter);
 
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
   const expenseByCategory = {};
   expenseTransactions.forEach(t => {
-    const cat = t.expenseCategory || 'other';
+    const cat = t.expense_category || t.expenseCategory || 'other';
     expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Math.abs(Number(t.amount) || 0);
   });
 
@@ -541,7 +549,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
       key: 'date',
       width: 150,
       render: (_, r) => {
-        const d = r.date || r.createdAt;
+        const d = r.date || r.created_at;
         return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
       },
     },
@@ -549,7 +557,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
       title: 'Khách Hàng',
       key: 'customer',
       width: 140,
-      render: (_, r) => r.customerName || customers.find(c => c.id === r.customerId)?.name || '-',
+      render: (_, r) => r.customer_name || r.customerName || customers.find(c => c.id === (r.customer_id || r.customerId))?.name || '-',
     },
     {
       title: 'Tổng Tiền',
@@ -560,22 +568,22 @@ export default function Payment({ pendingBooking, onClearPending }) {
     },
     {
       title: 'Phương Thức',
-      dataIndex: 'paymentMethod',
       key: 'paymentMethod',
       width: 120,
-      render: (v) => {
+      render: (_, r) => {
+        const v = r.payment_method || r.paymentMethod;
         const map = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ', combined: 'Kết hợp' };
         return map[v] || v || '-';
       },
     },
     {
       title: 'Loại',
-      dataIndex: 'transactionType',
       key: 'transactionType',
       width: 100,
-      render: (v) => {
-        const map = { service: 'Dịch vụ', package: 'Gói', product: 'Sản phẩm' };
-        const colors = { service: 'blue', package: 'purple', product: 'green' };
+      render: (_, r) => {
+        const v = r.transaction_type || r.transactionType;
+        const map = { service: 'Dịch vụ', package: 'Gói', product: 'Sản phẩm', mixed: 'Hỗn hợp' };
+        const colors = { service: 'blue', package: 'purple', product: 'green', mixed: 'orange' };
         return <Tag color={colors[v]}>{map[v] || v}</Tag>;
       },
     },
@@ -1009,12 +1017,12 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       {
                         title: 'Ngày', key: 'date', width: 140,
                         render: (_, r) => {
-                          const d = r.date || r.createdAt;
+                          const d = r.date || r.created_at;
                           return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
                         },
                         sorter: (a, b) => {
-                          const da = dayjs(a.date || a.createdAt);
-                          const db = dayjs(b.date || b.createdAt);
+                          const da = dayjs(a.date || a.created_at);
+                          const db = dayjs(b.date || b.created_at);
                           return da.valueOf() - db.valueOf();
                         },
                         defaultSortOrder: 'descend',
@@ -1022,7 +1030,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       {
                         title: 'Danh Mục', key: 'category', width: 180,
                         render: (_, r) => {
-                          const cat = r.expenseCategory || 'other';
+                          const cat = r.expense_category || r.expenseCategory || 'other';
                           const category = EXPENSE_CATEGORIES.find(c => c.value === cat);
                           return (
                             <Tag color="red">
@@ -1031,7 +1039,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                           );
                         },
                         filters: EXPENSE_CATEGORIES.map(c => ({ text: `${c.icon} ${c.label}`, value: c.value })),
-                        onFilter: (value, record) => (record.expenseCategory || 'other') === value,
+                        onFilter: (value, record) => (record.expense_category || record.expenseCategory || 'other') === value,
                       },
                       {
                         title: 'Số Tiền', key: 'amount', width: 140,
@@ -1045,7 +1053,7 @@ export default function Payment({ pendingBooking, onClearPending }) {
                       {
                         title: 'Phương Thức', key: 'method', width: 120,
                         render: (_, r) => {
-                          const m = r.paymentMethod || r.payment_method;
+                          const m = r.payment_method || r.paymentMethod;
                           const map = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ' };
                           return map[m] || m || '-';
                         },

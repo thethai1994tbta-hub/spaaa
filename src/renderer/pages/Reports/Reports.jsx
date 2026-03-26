@@ -76,7 +76,7 @@ export default function Reports() {
     if (!dateRange || dateRange.length < 2) return active;
     const [start, end] = dateRange;
     return active.filter(t => {
-      const d = parseDate(t.date || t.createdAt);
+      const d = parseDate(t.date || t.created_at);
       return d && d.isBetween(start.startOf('day'), end.endOf('day'), null, '[]');
     });
   }, [transactions, dateRange]);
@@ -114,7 +114,7 @@ export default function Reports() {
     // Daily revenue for chart
     const dailyMap = {};
     serviceTx.forEach(t => {
-      const d = parseDate(t.date || t.createdAt);
+      const d = parseDate(t.date || t.created_at);
       if (!d) return;
       const key = d.format('DD/MM');
       dailyMap[key] = (dailyMap[key] || 0) + (Number(t.amount) || 0);
@@ -241,7 +241,7 @@ export default function Reports() {
     // Daily expense for chart
     const dailyMap = {};
     expenseTx.forEach(t => {
-      const d = parseDate(t.date || t.createdAt);
+      const d = parseDate(t.date || t.created_at);
       if (!d) return;
       const key = d.format('DD/MM');
       dailyMap[key] = (dailyMap[key] || 0) + Math.abs(Number(t.amount) || 0);
@@ -279,7 +279,7 @@ export default function Reports() {
     if (type === 'revenue') {
       headers = ['Ngày', 'Khách Hàng', 'Loại', 'Phương Thức', 'Số Tiền', 'Ghi Chú'];
       rows = incomeTx.map(t => {
-          const d = parseDate(t.date || t.createdAt);
+          const d = parseDate(t.date || t.created_at);
           const cust = customers.find(c => c.id === (t.customerId || t.customer_id));
           const typeMap = { service: 'Dịch vụ', package: 'Gói', product: 'Sản phẩm', mixed: 'Hỗn hợp' };
           const methodMap = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ', combined: 'Kết hợp' };
@@ -306,7 +306,7 @@ export default function Reports() {
     } else if (type === 'expenses') {
       headers = ['Ngày', 'Danh Mục', 'Số Tiền', 'Phương Thức', 'Ghi Chú'];
       rows = expenseStats.transactions.map(t => {
-        const d = parseDate(t.date || t.createdAt);
+        const d = parseDate(t.date || t.created_at);
         const cat = EXPENSE_CATEGORIES.find(c => c.value === t.expenseCategory);
         const methodMap = { cash: 'Tiền mặt', transfer: 'Chuyển khoản', card: 'Thẻ' };
         return [
@@ -499,10 +499,10 @@ export default function Reports() {
                       columns={[
                         {
                           title: 'Ngày', key: 'date', width: 140,
-                          render: (_, r) => { const d = parseDate(r.date || r.createdAt); return d ? d.format('DD/MM/YYYY HH:mm') : '-'; },
+                          render: (_, r) => { const d = parseDate(r.date || r.created_at); return d ? d.format('DD/MM/YYYY HH:mm') : '-'; },
                           sorter: (a, b) => {
-                            const da = parseDate(a.date || a.createdAt);
-                            const db = parseDate(b.date || b.createdAt);
+                            const da = parseDate(a.date || a.created_at);
+                            const db = parseDate(b.date || b.created_at);
                             return (da?.valueOf() || 0) - (db?.valueOf() || 0);
                           },
                           defaultSortOrder: 'descend',
@@ -894,10 +894,10 @@ export default function Reports() {
                       columns={[
                         {
                           title: 'Ngày', key: 'date', width: 140,
-                          render: (_, r) => { const d = parseDate(r.date || r.createdAt); return d ? d.format('DD/MM/YYYY HH:mm') : '-'; },
+                          render: (_, r) => { const d = parseDate(r.date || r.created_at); return d ? d.format('DD/MM/YYYY HH:mm') : '-'; },
                           sorter: (a, b) => {
-                            const da = parseDate(a.date || a.createdAt);
-                            const db = parseDate(b.date || b.createdAt);
+                            const da = parseDate(a.date || a.created_at);
+                            const db = parseDate(b.date || b.created_at);
                             return (da?.valueOf() || 0) - (db?.valueOf() || 0);
                           },
                           defaultSortOrder: 'descend',
