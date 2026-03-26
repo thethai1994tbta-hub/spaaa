@@ -1,0 +1,9 @@
+{
+  "slug": "ten-spa",
+  "displayName": "GIADUNG",
+  "tagline": "Quản Lý Chuyên Nghiệp",
+  "primaryColor": "#ff69b4",
+  "appId": "com.spa.ten-spa.management",
+  "version": "1.0.0",
+  "iconFile": "icon.ico"
+}

@@ -41,16 +41,27 @@ function setupFirebaseIPC() {
   ipcMain.handle('db:services:add', async (event, service) => {
     return addDocument(COLLECTIONS.SERVICES, {
       name: service.name,
-      price: service.price,
+      category: service.category || null,
+      price: service.price || 0,
       duration: service.duration || 60,
       description: service.description || null,
-      category: service.category || null,
+      steps: service.steps || null,
+      commissionRate: service.commissionRate || 0,
       active: true,
     });
   });
 
   ipcMain.handle('db:services:update', async (event, id, service) => {
-    return updateDocument(COLLECTIONS.SERVICES, id, service);
+    return updateDocument(COLLECTIONS.SERVICES, id, {
+      name: service.name,
+      category: service.category || null,
+      price: service.price || 0,
+      duration: service.duration || 60,
+      description: service.description || null,
+      steps: service.steps || null,
+      commissionRate: service.commissionRate || 0,
+      active: service.active !== undefined ? service.active : true,
+    });
   });
 
   ipcMain.handle('db:services:delete', async (event, id) => {
@@ -70,13 +81,20 @@ function setupFirebaseIPC() {
       email: staff.email || null,
       position: staff.position || null,
       salary: staff.salary || 0,
-      commissionRate: staff.commission_rate || 0.1,
+      commissionRate: Number(staff.commission_rate ?? staff.commissionRate) || 0,
       active: true,
     });
   });
 
   ipcMain.handle('db:staff:update', async (event, id, staff) => {
-    return updateDocument(COLLECTIONS.STAFF, id, staff);
+    return updateDocument(COLLECTIONS.STAFF, id, {
+      name: staff.name,
+      phone: staff.phone || null,
+      email: staff.email || null,
+      position: staff.position || null,
+      salary: staff.salary || 0,
+      commissionRate: Number(staff.commission_rate ?? staff.commissionRate) || 0,
+    });
   });
 
   ipcMain.handle('db:staff:delete', async (event, id) => {
@@ -121,18 +139,35 @@ function setupFirebaseIPC() {
   ipcMain.handle('db:transactions:add', async (event, transaction) => {
     return addDocument(COLLECTIONS.TRANSACTIONS, {
       bookingId: transaction.booking_id || null,
-      customerId: transaction.customer_id,
+      customerId: transaction.customer_id || null,
+      customerName: transaction.customer_name || '',
       staffId: transaction.staff_id || null,
+      staffName: transaction.staff_name || '',
+      items: transaction.items || [],
+      subtotal: transaction.subtotal || 0,
+      discount: transaction.discount || 0,
+      discountType: transaction.discount_type || 'fixed',
       amount: transaction.amount,
       paymentMethod: transaction.payment_method || 'cash',
+      paymentDetails: transaction.payment_details || null,
       transactionType: transaction.transaction_type || 'service',
       commissionAmount: transaction.commission_amount || 0,
+      pointsUsed: transaction.points_used || 0,
+      pointsEarned: transaction.points_earned || 0,
+      notes: transaction.notes || '',
       status: transaction.status || 'completed',
+      date: new Date(transaction.date || Date.now()),
+      expenseCategory: transaction.expense_category || transaction.expenseCategory || null,
+      expenseCategoryLabel: transaction.expense_category_label || transaction.expenseCategoryLabel || null,
     });
   });
 
   ipcMain.handle('db:transactions:update', async (event, id, transaction) => {
     return updateDocument(COLLECTIONS.TRANSACTIONS, id, transaction);
+  });
+
+  ipcMain.handle('db:transactions:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.TRANSACTIONS, id);
   });
 
   // ==================== INVENTORY ====================
@@ -163,6 +198,10 @@ function setupFirebaseIPC() {
     return updateDocument(COLLECTIONS.INVENTORY, id, updateData);
   });
 
+  ipcMain.handle('db:inventory:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.INVENTORY, id);
+  });
+
   // ==================== DASHBOARD ====================
   ipcMain.handle('db:dashboard:getStats', async () => {
     try {
@@ -177,8 +216,13 @@ function setupFirebaseIPC() {
         { field: 'createdAt', operator: '<=', value: todayEnd },
       ]);
 
+      const isIncomeTx = (tx) => {
+        const t = tx.transactionType || tx.transaction_type;
+        return !tx.deleted && t !== 'commission' && t !== 'expense' && t !== 'expense_deleted' && t !== 'deleted' && (tx.amount || 0) > 0;
+      };
+
       const todayRevenue = todayTxResult.success
-        ? todayTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        ? todayTxResult.data.filter(isIncomeTx).reduce((sum, tx) => sum + (tx.amount || 0), 0)
         : 0;
 
       // Get this month's transactions
@@ -191,7 +235,7 @@ function setupFirebaseIPC() {
       ]);
 
       const monthRevenue = monthTxResult.success
-        ? monthTxResult.data.reduce((sum, tx) => sum + (tx.amount || 0), 0)
+        ? monthTxResult.data.filter(isIncomeTx).reduce((sum, tx) => sum + (tx.amount || 0), 0)
         : 0;
 
       // Get today's bookings
@@ -221,6 +265,14 @@ function setupFirebaseIPC() {
   });
 
   // ==================== ATTENDANCE ====================
+  ipcMain.handle('db:attendance:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.ATTENDANCE);
+  });
+
+  ipcMain.handle('db:attendance:delete', async (event, id) => {
+    return deleteDocument(COLLECTIONS.ATTENDANCE, id);
+  });
+
   ipcMain.handle('db:attendance:add', async (event, attendance) => {
     return addDocument(COLLECTIONS.ATTENDANCE, {
       staffId: attendance.staffId,
@@ -234,6 +286,15 @@ function setupFirebaseIPC() {
     });
   });
 
+  ipcMain.handle('db:attendance:update', async (event, id, data) => {
+    return updateDocument(COLLECTIONS.ATTENDANCE, id, {
+      ...(data.checkOutTime && { checkOutTime: new Date(data.checkOutTime) }),
+      ...(data.hoursWorked !== undefined && { hoursWorked: data.hoursWorked }),
+      ...(data.status && { status: data.status }),
+      ...(data.deleted !== undefined && { deleted: data.deleted }),
+    });
+  });
+
   // ==================== STOCK MOVEMENTS ====================
   ipcMain.handle('db:stock-movements:add', async (event, movement) => {
     return addDocument(COLLECTIONS.STOCK_MOVEMENTS, {
@@ -241,10 +302,46 @@ function setupFirebaseIPC() {
       itemName: movement.itemName,
       date: new Date(movement.date),
       quantity: movement.quantity,
+      unitCost: movement.unitCost || 0,
+      totalCost: movement.totalCost || 0,
       notes: movement.notes || null,
       type: movement.type || 'import',
       user: movement.user || 'System',
     });
+  });
+
+  // ==================== PACKAGES ====================
+  ipcMain.handle('db:packages:getAll', async () => {
+    return getAllDocuments(COLLECTIONS.PACKAGES, { field: 'name', direction: 'asc' });
+  });
+
+  ipcMain.handle('db:packages:add', async (event, pkg) => {
+    return addDocument(COLLECTIONS.PACKAGES, {
+      name: pkg.name,
+      category: pkg.category || null,
+      description: pkg.description || null,
+      price: pkg.price || 0,
+      sessions: pkg.sessions || 1,
+      validityDays: pkg.validityDays || 30,
+      services: pkg.services || [],
+      status: 'active',
+    });
+  });
+
+  ipcMain.handle('db:packages:update', async (event, id, pkg) => {
+    return updateDocument(COLLECTIONS.PACKAGES, id, {
+      name: pkg.name,
+      category: pkg.category || null,
+      description: pkg.description || null,
+      price: pkg.price || 0,
+      sessions: pkg.sessions || 1,
+      validityDays: pkg.validityDays || 30,
+      services: pkg.services || [],
+    });
+  });
+
+  ipcMain.handle('db:packages:delete', async (event, id) => {
+    return updateDocument(COLLECTIONS.PACKAGES, id, { status: 'inactive' });
   });
 
   // ==================== GENERIC QUERY ====================
@@ -270,7 +367,15 @@ function setupFirebaseIPC() {
   });
 
   ipcMain.handle('db:settings:set', async (event, key, value) => {
-    return addDocument(COLLECTIONS.APP_SETTINGS, { key, value });
+    try {
+      await require('../database/firebaseDb').getDatabase()
+        .collection(COLLECTIONS.APP_SETTINGS)
+        .doc(key)
+        .set(value, { merge: true });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   });
 
   console.log('[IPC] Firebase handlers registered');

@@ -1,7 +1,10 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const isDev = process.env.NODE_ENV === 'development';
+
+// License system
+const { getMachineId, loadLicense, activateLicense } = require('./license');
 
 // Firebase setup
 const { initDatabase: initFirebase } = require('./database/firebaseDb');
@@ -16,15 +19,10 @@ let useFirebase = false;
 
 function createWindow() {
   // Resolve preload path - handle both dev and prod
-  let preloadPath;
-  if (isDev) {
-    // In development: src/main/main.js -> ../../public/preload.js
-    preloadPath = path.resolve(__dirname, '../../public/preload.js');
-  } else {
-    // In production: app in dist folder
-    preloadPath = path.resolve(__dirname, '../../public/preload.js');
-  }
+  const appRoot = isDev ? path.resolve(__dirname, '../..') : app.getAppPath();
+  const preloadPath = path.join(appRoot, 'public', 'preload.js');
 
+  console.log('[APP] App root:', appRoot);
   console.log('[APP] Preload path:', preloadPath);
   console.log('[APP] File exists:', fs.existsSync(preloadPath));
 
@@ -54,13 +52,27 @@ function createWindow() {
     });
   });
 
-  const url = isDev ? 'http://127.0.0.1:5173' : 'file://' + path.join(__dirname, '../../dist/index.html');
+  const url = isDev ? 'http://127.0.0.1:5173' : 'file://' + path.join(appRoot, 'dist', 'index.html');
   console.log(`[APP] Loading: ${url}`);
   mainWindow.loadURL(url);
 
   if (isDev) mainWindow.webContents.openDevTools();
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+// ==================== LICENSE IPC ====================
+ipcMain.handle('license:check', async () => {
+  if (isDev) return { valid: true, dev: true };
+  return loadLicense();
+});
+
+ipcMain.handle('license:getMachineId', async () => {
+  return getMachineId();
+});
+
+ipcMain.handle('license:activate', async (event, licenseKey, expiryDate) => {
+  return activateLicense(licenseKey, expiryDate);
+});
 
 app.on('ready', async () => {
   try {

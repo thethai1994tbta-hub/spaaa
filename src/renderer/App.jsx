@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import BRANDING from './branding';
 import { Layout, Menu, Button, Spin } from 'antd';
 import {
   DashboardOutlined,
@@ -9,14 +9,18 @@ import {
   ShoppingCartOutlined,
   BarChartOutlined,
   LogoutOutlined,
+  SettingOutlined,
+  LockOutlined,
+  UnlockOutlined,
 } from '@ant-design/icons';
+import { useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Customers from './pages/Customers/Customers';
 import Staff from './pages/Staff/Staff';
-import Booking from './pages/Booking/Booking';
 import Payment from './pages/Payment/Payment';
 import Inventory from './pages/Inventory/Inventory';
 import Reports from './pages/Reports/Reports';
+import Settings from './pages/Settings/Settings';
 import { ThemeContext } from './context/ThemeContext';
 import './styles/App.css';
 
@@ -26,15 +30,31 @@ const App = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [spaName, setSpaName] = useState(BRANDING.displayName);
+  const [pendingBooking, setPendingBooking] = useState(null);
+  const { isUnlocked, lock, requireAuth } = useAuth();
+
+  const goToPayment = (booking) => {
+    setPendingBooking(booking);
+    setCurrentPage('payment');
+  };
+
+  useEffect(() => {
+    const loadSpaName = async () => {
+      try {
+        const ipc = window.electron || window.ipc;
+        if (!ipc) return;
+        const result = await ipc.invoke('db:settings:get', 'spa');
+        if (result.success && result.data?.name && result.data.name !== 'SPA VIP') {
+          setSpaName(result.data.name);
+        }
+      } catch {}
+    };
+    loadSpaName();
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setIsDarkMode }}>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
         <Layout style={{ minHeight: '100vh', background: isDarkMode ? '#0f0f0f' : '#f5f7fa' }}>
           <Sider
             trigger={null}
@@ -45,6 +65,13 @@ const App = () => {
               background: isDarkMode ? '#1f1f1f' : '#fff',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
               borderRight: `1px solid ${isDarkMode ? '#333' : '#e8e8e8'}`,
+              overflow: 'auto',
+              height: '100vh',
+              position: 'fixed',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              zIndex: 100,
             }}
           >
             <div
@@ -56,8 +83,8 @@ const App = () => {
                 background: isDarkMode ? 'rgba(255,192,203,0.08)' : 'rgba(255,105,180,0.05)',
               }}
             >
-              <h2 style={{ color: '#ff69b4', margin: 0, fontSize: '24px', fontWeight: '700' }}>SPA VIP</h2>
-              <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>Quản Lý Chuyên Nghiệp</p>
+              <h2 style={{ color: BRANDING.primaryColor, margin: 0, fontSize: '24px', fontWeight: '700' }}>{spaName}</h2>
+              <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>{BRANDING.tagline}</p>
             </div>
             <Menu
               theme={isDarkMode ? 'dark' : 'light'}
@@ -87,12 +114,6 @@ const App = () => {
                   onClick: () => setCurrentPage('customers'),
                 },
                 {
-                  key: 'booking',
-                  icon: <CalendarOutlined />,
-                  label: 'Đặt Lịch',
-                  onClick: () => setCurrentPage('booking'),
-                },
-                {
                   key: 'payment',
                   icon: <ShoppingCartOutlined />,
                   label: 'Thanh Toán',
@@ -116,10 +137,17 @@ const App = () => {
                   label: 'Nhân Viên',
                   onClick: () => setCurrentPage('staff'),
                 },
+                { type: 'divider' },
+                {
+                  key: 'settings',
+                  icon: <SettingOutlined />,
+                  label: 'Cài Đặt',
+                  onClick: () => setCurrentPage('settings'),
+                },
               ]}
             />
           </Sider>
-          <Layout>
+          <Layout style={{ marginLeft: collapsed ? 80 : 250, transition: 'margin-left 0.2s' }}>
             <Header
               style={{
                 padding: '0 32px',
@@ -150,14 +178,26 @@ const App = () => {
                     fontWeight: '700',
                   }}
                 >
-                  Hệ Thống Quản Lý SPA VIP
+                  Hệ Thống Quản Lý {spaName}
                 </div>
               </div>
               <Button
                 type="text"
-                icon={<LogoutOutlined />}
-                style={{ color: isDarkMode ? '#ccc' : '#333' }}
-              />
+                icon={isUnlocked ? <UnlockOutlined /> : <LockOutlined />}
+                onClick={() => {
+                  if (isUnlocked) {
+                    lock();
+                  } else {
+                    requireAuth(null);
+                  }
+                }}
+                style={{
+                  color: isUnlocked ? '#52c41a' : (isDarkMode ? '#ccc' : '#333'),
+                  fontSize: '16px',
+                }}
+              >
+                {isUnlocked ? 'Đã Mở Khóa' : 'Đã Khóa'}
+              </Button>
             </Header>
             <Content
               style={{
@@ -169,27 +209,16 @@ const App = () => {
                 minHeight: 'calc(100vh - 134px)',
               }}
             >
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/staff" element={<Staff />} />
-                <Route path="/booking" element={<Booking />} />
-                <Route path="/payment" element={<Payment />} />
-                <Route path="/inventory" element={<Inventory />} />
-                <Route path="/reports" element={<Reports />} />
-              </Routes>
-
-              {currentPage === 'dashboard' && <Dashboard />}
-              {currentPage === 'customers' && <Customers />}
+              {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} onGoToPayment={goToPayment} />}
+              {currentPage === 'customers' && <Customers onGoToPayment={goToPayment} />}
               {currentPage === 'staff' && <Staff />}
-              {currentPage === 'booking' && <Booking />}
-              {currentPage === 'payment' && <Payment />}
+              {currentPage === 'payment' && <Payment pendingBooking={pendingBooking} onClearPending={() => setPendingBooking(null)} />}
               {currentPage === 'inventory' && <Inventory />}
               {currentPage === 'reports' && <Reports />}
+              {currentPage === 'settings' && <Settings onSpaNameChange={setSpaName} />}
             </Content>
           </Layout>
         </Layout>
-      </Router>
     </ThemeContext.Provider>
   );
 };

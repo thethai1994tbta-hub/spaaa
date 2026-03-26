@@ -5,7 +5,15 @@
     "dist/**/*",
     "public/**/*",
     "src/main/**/*",
-    "package.json"
+    "src/config/**/*",
+    "package.json",
+    "!generate-key.js",
+    "!node_modules/sqlite3/deps/**/*",
+    "!node_modules/sqlite3/src/**/*"
+  ],
+  "npmRebuild": false,
+  "asarUnpack": [
+    "public/preload.js"
   ],
   "directories": {
     "buildResources": "public/images"

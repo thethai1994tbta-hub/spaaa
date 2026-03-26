@@ -1,0 +1,9 @@
+{
+  "slug": "demo-spa",
+  "displayName": "DEMO SPA",
+  "tagline": "Chăm Sóc Tận Tâm",
+  "primaryColor": "#ff69b4",
+  "appId": "com.demo.spa.management",
+  "version": "1.0.0",
+  "iconFile": "icon.ico"
+}

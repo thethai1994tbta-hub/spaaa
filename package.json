@@ -2,6 +2,7 @@
   "name": "spa-vip-management",
   "version": "1.0.0",
   "description": "Professional SPA Management System - Electron + React + Firebase/Firestore",
+  "author": "THAI SPA VIP",
   "main": "src/main/main.js",
   "homepage": "./",
   "scripts": {
@@ -15,7 +16,9 @@
     "build:exe": "npm run build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "migrate:sqlite-to-firebase": "node src/main/migration/runMigration.js"
+    "migrate:sqlite-to-firebase": "node src/main/migration/runMigration.js",
+    "clone:system-config": "node scripts/clone-system-config.js",
+    "oneclick:client-config": "node scripts/oneclick-setup-client.js"
   },
   "dependencies": {
     "antd": "^5.11.0",
@@ -39,42 +42,5 @@
     "electron": "^27.0.0",
     "electron-builder": "^24.9.0",
     "vite": "^5.0.0"
-  },
-  "build": {
-    "appId": "com.spa.vip.management",
-    "productName": "SPA VIP Management",
-    "directories": {
-      "buildResources": "public",
-      "output": "dist"
-    },
-    "files": [
-      "src/**/*",
-      "public/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "public/images/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "SPA VIP Management"
-    }
   }
 }

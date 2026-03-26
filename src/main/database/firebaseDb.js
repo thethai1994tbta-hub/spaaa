@@ -63,7 +63,33 @@ const COLLECTIONS = {
   STOCK_MOVEMENTS: 'stockMovements',
   ATTENDANCE: 'attendance',
   APP_SETTINGS: 'appSettings',
+  PACKAGES: 'packages',
 };
+
+// Convert Firestore Timestamps to ISO strings so they survive IPC serialization
+function sanitizeDoc(data) {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizeDoc);
+
+  const result = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value && typeof value === 'object') {
+      // Firestore Timestamp has toDate() method
+      if (typeof value.toDate === 'function') {
+        result[key] = value.toDate().toISOString();
+      } else if (Array.isArray(value)) {
+        result[key] = value.map(sanitizeDoc);
+      } else if (value.constructor === Object) {
+        result[key] = sanitizeDoc(value);
+      } else {
+        result[key] = value;
+      }
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
 
 // Helper functions for Firestore operations
 async function addDocument(collectionName, data) {
@@ -83,7 +109,7 @@ async function getDocument(collectionName, docId) {
   try {
     const doc = await getDatabase().collection(collectionName).doc(docId).get();
     if (doc.exists) {
-      return { success: true, data: { id: doc.id, ...doc.data() } };
+      return { success: true, data: sanitizeDoc({ id: doc.id, ...doc.data() }) };
     }
     return { success: false, error: 'Document not found' };
   } catch (error) {
@@ -100,7 +126,7 @@ async function getAllDocuments(collectionName, orderBy = null) {
     }
 
     const snapshot = await query.get();
-    const data = snapshot.docs.map(doc => ({
+    const data = snapshot.docs.map(doc => sanitizeDoc({
       id: doc.id,
       ...doc.data(),
     }));
@@ -141,7 +167,7 @@ async function query(collectionName, conditions = []) {
     });
 
     const snapshot = await queryRef.get();
-    const data = snapshot.docs.map(doc => ({
+    const data = snapshot.docs.map(doc => sanitizeDoc({
       id: doc.id,
       ...doc.data(),
     }));
