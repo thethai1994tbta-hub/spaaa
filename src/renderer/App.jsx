@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import BRANDING from './branding';
 import { Layout, Menu, Button, Spin } from 'antd';
 import {
   DashboardOutlined,
@@ -29,7 +30,7 @@ const App = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [spaName, setSpaName] = useState('SPA VIP');
+  const [spaName, setSpaName] = useState(BRANDING.displayName);
   const [pendingBooking, setPendingBooking] = useState(null);
   const { isUnlocked, lock, requireAuth } = useAuth();
 
@@ -44,7 +45,7 @@ const App = () => {
         const ipc = window.electron || window.ipc;
         if (!ipc) return;
         const result = await ipc.invoke('db:settings:get', 'spa');
-        if (result.success && result.data?.name) {
+        if (result.success && result.data?.name && result.data.name !== 'SPA VIP') {
           setSpaName(result.data.name);
         }
       } catch {}
@@ -82,8 +83,8 @@ const App = () => {
                 background: isDarkMode ? 'rgba(255,192,203,0.08)' : 'rgba(255,105,180,0.05)',
               }}
             >
-              <h2 style={{ color: '#ff69b4', margin: 0, fontSize: '24px', fontWeight: '700' }}>{spaName}</h2>
-              <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>Quản Lý Chuyên Nghiệp</p>
+              <h2 style={{ color: BRANDING.primaryColor, margin: 0, fontSize: '24px', fontWeight: '700' }}>{spaName}</h2>
+              <p style={{ color: isDarkMode ? '#888' : '#666', margin: '4px 0 0 0', fontSize: '12px' }}>{BRANDING.tagline}</p>
             </div>
             <Menu
               theme={isDarkMode ? 'dark' : 'light'}
@@ -109,7 +110,7 @@ const App = () => {
                 {
                   key: 'customers',
                   icon: <UserOutlined />,
-                  label: 'Khách Hàng & Đặt Lịch',
+                  label: 'Khách Hàng',
                   onClick: () => setCurrentPage('customers'),
                 },
                 {

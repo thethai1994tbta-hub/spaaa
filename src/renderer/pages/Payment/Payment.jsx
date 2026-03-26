@@ -117,7 +117,15 @@ export default function Payment({ pendingBooking, onClearPending }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [custRes, staffRes, svcRes, pkgRes, invRes, txRes] = await Promise.all([
+      // Keep screen usable even if one endpoint fails (common when SQLite/Firebase handlers differ)
+      const [
+        custRes,
+        staffRes,
+        svcRes,
+        pkgRes,
+        invRes,
+        txRes,
+      ] = await Promise.allSettled([
         invoke('db:customers:getAll'),
         invoke('db:staff:getAll'),
         invoke('db:services:getAll'),
@@ -125,24 +133,34 @@ export default function Payment({ pendingBooking, onClearPending }) {
         invoke('db:inventory:getAll'),
         invoke('db:transactions:getAll'),
       ]);
+
+      const safeData = (settled) => (
+        settled.status === 'fulfilled' ? (settled.value?.data || settled.value || []) : []
+      );
+
       // Bank config is optional - don't let it break loading
       try {
         const bankRes = await invoke('db:settings:get', 'bank');
         if (bankRes.success && bankRes.data) setBankConfig(bankRes.data);
       } catch { /* not configured yet */ }
       try {
-        const spaRes = await invoke('db:settings:get', 'spa');
-        if (spaRes.success && spaRes.data?.pointRate) setPointRate(Number(spaRes.data.pointRate) || 10000);
+        // pointRate is stored under workTime in Settings UI
+        const workTimeRes = await invoke('db:settings:get', 'workTime');
+        if (workTimeRes.success && workTimeRes.data?.pointRate) {
+          setPointRate(Number(workTimeRes.data.pointRate) || 10000);
+        }
       } catch {}
-      setCustomers(custRes.data || custRes || []);
-      setStaffList(staffRes.data || staffRes || []);
-      const svcs = svcRes.data || svcRes || [];
+
+      setCustomers(safeData(custRes));
+      setStaffList(safeData(staffRes));
+      const svcs = safeData(svcRes);
       setServicesList(svcs.filter(s => s.active !== false));
-      const pkgs = pkgRes.data || pkgRes || [];
+      const pkgs = safeData(pkgRes);
       setPackagesList(pkgs.filter(p => p.status !== 'inactive'));
-      const inv = invRes.data || invRes || [];
+      const inv = safeData(invRes);
+      // Keep original UI behavior: show products that have quantity > 0
       setInventoryList(inv.filter(i => (i.quantity || 0) > 0));
-      setTransactions(txRes.data || txRes || []);
+      setTransactions(safeData(txRes));
     } catch (error) {
       console.error('[Payment] Load error:', error);
     } finally {

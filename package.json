@@ -16,7 +16,9 @@
     "build:exe": "npm run build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "migrate:sqlite-to-firebase": "node src/main/migration/runMigration.js"
+    "migrate:sqlite-to-firebase": "node src/main/migration/runMigration.js",
+    "clone:system-config": "node scripts/clone-system-config.js",
+    "oneclick:client-config": "node scripts/oneclick-setup-client.js"
   },
   "dependencies": {
     "antd": "^5.11.0",

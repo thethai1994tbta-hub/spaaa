@@ -3,7 +3,7 @@ import { Row, Col, Card, Statistic, Table, Empty, Spin, Tag, Badge, Tabs, Button
 import {
   CalendarOutlined, ClockCircleOutlined, BellOutlined, SendOutlined,
   UserOutlined, TeamOutlined, ShoppingCartOutlined, WarningOutlined,
-  RiseOutlined, DollarOutlined, CheckCircleOutlined, MinusCircleOutlined,
+  RiseOutlined, DollarOutlined, CheckCircleOutlined, MinusCircleOutlined, ReloadOutlined,
 } from '@ant-design/icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useAPI } from '../../hooks/useAPI';
@@ -28,7 +28,15 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
 
   const loadDashboard = async () => {
     try {
-      const [statsRes, bookingsRes, customersRes, staffRes, servicesRes, txRes, invRes] = await Promise.all([
+      const [
+        statsRes,
+        bookingsRes,
+        customersRes,
+        staffRes,
+        servicesRes,
+        txRes,
+        invRes,
+      ] = await Promise.allSettled([
         invoke('db:dashboard:getStats'),
         invoke('db:bookings:getAll'),
         invoke('db:customers:getAll'),
@@ -37,17 +45,22 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
         invoke('db:transactions:getAll'),
         invoke('db:inventory:getAll'),
       ]);
-      setStats(statsRes.data || statsRes);
-      setBookings(bookingsRes.data || bookingsRes || []);
-      setCustomers(customersRes.data || customersRes || []);
-      setStaffList((staffRes.data || staffRes || []).filter(s => s.active !== false));
-      setServicesList((servicesRes.data || servicesRes || []).filter(s => s.active !== false));
-      const allTx = txRes.data || txRes || [];
+
+      const safeValue = (settled, fallback) => (
+        settled.status === 'fulfilled' ? (settled.value?.data ?? settled.value) : fallback
+      );
+
+      setStats(safeValue(statsRes, null));
+      setBookings(safeValue(bookingsRes, []) || []);
+      setCustomers(safeValue(customersRes, []) || []);
+      setStaffList((safeValue(staffRes, []) || []).filter(s => s.active !== false));
+      setServicesList((safeValue(servicesRes, []) || []).filter(s => s.active !== false));
+      const allTx = safeValue(txRes, []) || [];
       setTransactions(allTx.filter(t => {
         const type = t.transactionType || t.transaction_type;
         return !t.deleted && type !== 'commission' && type !== 'expense' && type !== 'expense_deleted' && type !== 'deleted' && (t.amount || 0) > 0;
       }));
-      setInventory(invRes.data || invRes || []);
+      setInventory(safeValue(invRes, []) || []);
 
       // Load today's attendance
       try {
@@ -226,7 +239,10 @@ export default function Dashboard({ onNavigate, onGoToPayment }) {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 20 }}>Dashboard</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ margin: 0 }}>Dashboard</h2>
+        <Button icon={<ReloadOutlined />} onClick={loadDashboard} loading={loading}>Làm Mới</Button>
+      </div>
 
       {/* ===== STATS ROW ===== */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>

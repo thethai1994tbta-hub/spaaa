@@ -31,3 +31,11 @@ npm-debug.log*
 build/
 out/
 firebase-config.json
+
+# White-label client data (SENSITIVE - NEVER COMMIT)
+clients/*/firebase-config.json
+
+# Client build outputs
+releases/
+_electron-builder-backup.json
+public/images/_icon-backup.ico
