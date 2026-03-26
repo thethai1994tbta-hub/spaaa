@@ -129,7 +129,7 @@ function setupIPC() {
     try {
       const result = await runQuery(
         'INSERT INTO staff (name, phone, email, position, salary, commission_rate) VALUES (?, ?, ?, ?, ?, ?)',
-        [staff.name, staff.phone || null, staff.email || null, staff.position || null, staff.salary || 0, staff.commission_rate || 0.1]
+        [staff.name, staff.phone || null, staff.email || null, staff.position || null, staff.salary || 0, staff.commission_rate || 10]
       );
       return { success: true, id: result.id };
     } catch (error) {

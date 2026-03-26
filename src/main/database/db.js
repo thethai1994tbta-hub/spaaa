@@ -60,7 +60,7 @@ function initDatabase() {
         email TEXT,
         position TEXT,
         salary REAL,
-        commission_rate REAL DEFAULT 0.1,
+        commission_rate REAL DEFAULT 10,
         active INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -217,6 +217,12 @@ function initDatabase() {
       ensureColumn(m.table, m.column, m.ddl, runNext);
     };
     runNext();
+
+    // Fix legacy staff with commission_rate stored as decimal (0.1) instead of percent (10)
+    database.run(
+      'UPDATE staff SET commission_rate = commission_rate * 100 WHERE commission_rate > 0 AND commission_rate < 1',
+      (err) => { if (err) console.error('[DB] Commission rate migration error:', err); }
+    );
   });
 
   console.log('[DB] Database initialized at:', dbPath);
