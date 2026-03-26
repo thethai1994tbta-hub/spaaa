@@ -1,151 +1,107 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card,
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  message,
-  Spin,
-  Drawer,
-  Space,
-  Popconfirm,
-  Empty,
-  InputNumber,
-  Tag,
-  Descriptions,
-  Tabs,
-  Select,
+  Card, Table, Button, Modal, Form, Input, message, Spin,
+  Space, Popconfirm, Empty, InputNumber, Tag, Tabs, Select,
+  Row, Col, Statistic, Badge, Divider, DatePicker,
 } from 'antd';
 import {
-  PlusOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  DownloadOutlined,
-  SearchOutlined,
-  ImportOutlined,
+  PlusOutlined, DeleteOutlined, EditOutlined,
+  SearchOutlined, ImportOutlined, ExportOutlined,
+  ShoppingOutlined, AppstoreOutlined, GiftOutlined,
+  DollarOutlined, WarningOutlined, HistoryOutlined,
+  InboxOutlined, BarChartOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { useAPI } from '../../hooks/useAPI';
 import { useAuth } from '../../context/AuthContext';
+
+// Helper to read snake_case fields from SQLite
+const f = (record, camel, snake) => record[snake] ?? record[camel] ?? null;
 
 export default function Inventory() {
   const { invoke } = useAPI();
   const { guardAction } = useAuth();
 
-  // Product states
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
   const [packages, setPackages] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);
 
-  // Loading states
   const [loading, setLoading] = useState(false);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [servicesLoading, setServicesLoading] = useState(false);
-  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('products');
+  const [searchText, setSearchText] = useState('');
 
-  // Modal states
+  // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-
-  // Selection states
-  const [selectedType, setSelectedType] = useState('products'); // products, services, packages
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState('products');
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // Search states
-  const [searchText, setSearchText] = useState('');
-  const [activeTab, setActiveTab] = useState('products');
-
-  // Forms
   const [form] = Form.useForm();
   const [importForm] = Form.useForm();
+  const [exportForm] = Form.useForm();
 
-  useEffect(() => {
-    loadProducts();
-    loadServices();
-    loadPackages();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
-  // ============ LOAD DATA ============
-  const loadProducts = async () => {
-    setProductsLoading(true);
+  const loadAll = async () => {
+    setLoading(true);
     try {
-      const result = await invoke('db:inventory:getAll');
-      const data = result.data || result || [];
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('[Inventory] Error:', error);
-      message.error('Lỗi tải sản phẩm: ' + error.message);
+      const [prodRes, svcRes, pkgRes] = await Promise.allSettled([
+        invoke('db:inventory:getAll'),
+        invoke('db:services:getAll'),
+        invoke('db:packages:getAll'),
+      ]);
+      const safe = (r) => {
+        const d = r.status === 'fulfilled' ? (r.value?.data || r.value || []) : [];
+        return Array.isArray(d) ? d : [];
+      };
+      setProducts(safe(prodRes));
+      setServices(safe(svcRes).filter(s => s.active !== false && s.active !== 0));
+      setPackages(safe(pkgRes).filter(p => p.status !== 'inactive'));
+
+      // Load stock movements
+      try {
+        const mvRes = await invoke('db:query', 'stock_movements', []);
+        setStockMovements(mvRes?.data || mvRes || []);
+      } catch { setStockMovements([]); }
+    } catch (e) {
+      console.error('[Inventory] Load error:', e);
     } finally {
-      setProductsLoading(false);
+      setLoading(false);
     }
   };
 
-  const loadServices = async () => {
-    setServicesLoading(true);
-    try {
-      const result = await invoke('db:services:getAll');
-      const data = result.data || result || [];
-      setServices(Array.isArray(data) ? data.filter(s => s.active !== false) : []);
-    } catch (error) {
-      console.error('[Services] Error:', error);
-      message.error('Lỗi tải dịch vụ: ' + error.message);
-    } finally {
-      setServicesLoading(false);
-    }
-  };
-
-  const loadPackages = async () => {
-    setPackagesLoading(true);
-    try {
-      const result = await invoke('db:packages:getAll');
-      const data = result.data || result || [];
-      setPackages(Array.isArray(data) ? data.filter(p => p.status !== 'inactive') : []);
-    } catch (error) {
-      console.error('[Packages] Error:', error);
-      setPackages([]);
-    } finally {
-      setPackagesLoading(false);
-    }
-  };
+  // ============ STATS ============
+  const totalProducts = products.length;
+  const totalQuantity = products.reduce((s, p) => s + (p.quantity || 0), 0);
+  const totalStockValue = products.reduce((s, p) => s + (p.quantity || 0) * (p.unit_price || p.unitPrice || 0), 0);
+  const lowStockItems = products.filter(p => (p.quantity || 0) <= (p.reorder_level || p.reorderLevel || 10));
+  const outOfStockItems = products.filter(p => (p.quantity || 0) === 0);
 
   // ============ PRODUCT HANDLERS ============
-  const handleAddProduct = async (values) => {
+  const handleSaveProduct = async (values) => {
     try {
-      await invoke('db:inventory:add', {
+      const data = {
         name: values.name,
         category: values.category || '',
         quantity: values.quantity || 0,
-        unitPrice: Number(values.unitPrice) || 0,
-        reorderLevel: values.reorderLevel || 0,
+        unit_price: Number(values.sellPrice) || 0,
+        reorder_level: values.reorderLevel || 10,
         supplier: values.supplier || '',
-      });
-      message.success('Thêm sản phẩm thành công');
+      };
+      if (isEditMode && selectedItem) {
+        await invoke('db:inventory:update', selectedItem.id, data);
+        message.success('Cập nhật thành công');
+      } else {
+        await invoke('db:inventory:add', data);
+        message.success('Thêm sản phẩm thành công');
+      }
       form.resetFields();
       setIsModalOpen(false);
-      loadProducts();
-    } catch (error) {
-      message.error('Lỗi: ' + error.message);
-    }
-  };
-
-  const handleUpdateProduct = async (values) => {
-    try {
-      await invoke('db:inventory:update', selectedItem.id, {
-        name: values.name,
-        category: values.category || '',
-        quantity: values.quantity || 0,
-        unitPrice: Number(values.unitPrice) || 0,
-        reorderLevel: values.reorderLevel || 0,
-        supplier: values.supplier || '',
-      });
-      message.success('Cập nhật thành công');
-      setDetailDrawerOpen(false);
       setIsEditMode(false);
-      form.resetFields();
-      loadProducts();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -155,8 +111,7 @@ export default function Inventory() {
     try {
       await invoke('db:inventory:delete', id);
       message.success('Xóa thành công');
-      setDetailDrawerOpen(false);
-      loadProducts();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -166,39 +121,34 @@ export default function Inventory() {
   const handleImportStock = async (values) => {
     try {
       const product = products.find(p => p.id === values.productId);
-      if (!product) {
-        message.error('Không tìm thấy sản phẩm');
-        return;
-      }
+      if (!product) { message.error('Không tìm thấy sản phẩm'); return; }
       const newQuantity = (product.quantity || 0) + (values.quantity || 0);
-      const totalCost = (Number(values.unitCost) || 0) * (values.quantity || 0);
+      const unitCost = Number(values.unitCost) || 0;
+      const totalCost = unitCost * (values.quantity || 0);
 
       await invoke('db:inventory:update', product.id, {
-        name: product.name, category: product.category, quantity: newQuantity,
-        unitPrice: product.unitPrice, reorderLevel: product.reorderLevel, supplier: product.supplier,
+        name: product.name,
+        category: product.category,
+        quantity: newQuantity,
+        unit_price: product.unit_price || product.unitPrice,
+        reorder_level: product.reorder_level || product.reorderLevel,
+        supplier: product.supplier,
       });
 
-      // Log stock movement
       try {
         await invoke('db:stock-movements:add', {
-          itemId: product.id,
-          itemName: product.name,
-          date: new Date().toISOString(),
-          quantity: values.quantity,
-          type: 'import',
-          unitCost: Number(values.unitCost) || 0,
-          totalCost,
+          itemId: product.id, itemName: product.name,
+          date: new Date().toISOString(), quantity: values.quantity,
+          type: 'import', unitCost, totalCost,
           notes: values.notes || `Nhập ${values.quantity} ${product.name}`,
           user: 'Admin',
         });
       } catch {}
 
-      // Ghi chi phí vào báo cáo nếu có nhập giá tiền
       if (totalCost > 0) {
         try {
           await invoke('db:transactions:add', {
-            transaction_type: 'expense',
-            expense_category: 'supplies',
+            transaction_type: 'expense', expense_category: 'supplies',
             expense_category_label: 'Vật Tư / Nguyên Liệu',
             amount: -totalCost,
             notes: `Nhập hàng: ${values.quantity} ${product.name}${values.notes ? ` - ${values.notes}` : ''}`,
@@ -208,19 +158,58 @@ export default function Inventory() {
         } catch {}
       }
 
-      message.success(`Nhập ${values.quantity} ${product.name} thành công (Tổng kho: ${newQuantity})${totalCost > 0 ? ` | Chi phí: ${totalCost.toLocaleString('vi-VN')}₫` : ''}`);
+      message.success(`Nhập ${values.quantity} ${product.name} thành công (Tổng: ${newQuantity})`);
       importForm.resetFields();
       setIsImportModalOpen(false);
-      loadProducts();
+      loadAll();
+    } catch (error) {
+      message.error('Lỗi: ' + error.message);
+    }
+  };
+
+  // ============ EXPORT STOCK ============
+  const handleExportStock = async (values) => {
+    try {
+      const product = products.find(p => p.id === values.productId);
+      if (!product) { message.error('Không tìm thấy sản phẩm'); return; }
+      const currentQty = product.quantity || 0;
+      if (values.quantity > currentQty) {
+        message.error(`Không đủ hàng. Kho hiện có: ${currentQty}`);
+        return;
+      }
+      const newQuantity = currentQty - values.quantity;
+
+      await invoke('db:inventory:update', product.id, {
+        name: product.name, category: product.category,
+        quantity: newQuantity,
+        unit_price: product.unit_price || product.unitPrice,
+        reorder_level: product.reorder_level || product.reorderLevel,
+        supplier: product.supplier,
+      });
+
+      try {
+        await invoke('db:stock-movements:add', {
+          itemId: product.id, itemName: product.name,
+          date: new Date().toISOString(), quantity: -values.quantity,
+          type: 'export', unitCost: 0, totalCost: 0,
+          notes: values.notes || `Xuất ${values.quantity} ${product.name} — ${values.reason || 'Khác'}`,
+          user: 'Admin',
+        });
+      } catch {}
+
+      message.success(`Xuất ${values.quantity} ${product.name} thành công (Còn: ${newQuantity})`);
+      exportForm.resetFields();
+      setIsExportModalOpen(false);
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
   };
 
   // ============ SERVICE HANDLERS ============
-  const handleAddService = async (values) => {
+  const handleSaveService = async (values) => {
     try {
-      await invoke('db:services:add', {
+      const data = {
         name: values.name,
         category: values.category || '',
         price: Number(values.price) || 0,
@@ -228,32 +217,18 @@ export default function Inventory() {
         description: values.description || '',
         steps: values.steps || '',
         commissionRate: Number(values.commissionRate) || 0,
-      });
-      message.success('Thêm dịch vụ thành công');
+      };
+      if (isEditMode && selectedItem) {
+        await invoke('db:services:update', selectedItem.id, data);
+        message.success('Cập nhật thành công');
+      } else {
+        await invoke('db:services:add', data);
+        message.success('Thêm dịch vụ thành công');
+      }
       form.resetFields();
       setIsModalOpen(false);
-      loadServices();
-    } catch (error) {
-      message.error('Lỗi: ' + error.message);
-    }
-  };
-
-  const handleUpdateService = async (values) => {
-    try {
-      await invoke('db:services:update', selectedItem.id, {
-        name: values.name,
-        category: values.category || '',
-        price: Number(values.price) || 0,
-        duration: Number(values.duration) || 60,
-        description: values.description || '',
-        steps: values.steps || '',
-        commissionRate: Number(values.commissionRate) || 0,
-      });
-      message.success('Cập nhật thành công');
       setIsEditMode(false);
-      form.resetFields();
-      setIsModalOpen(false);
-      loadServices();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -263,16 +238,16 @@ export default function Inventory() {
     try {
       await invoke('db:services:delete', id);
       message.success('Xóa thành công');
-      loadServices();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
   };
 
   // ============ PACKAGE HANDLERS ============
-  const handleAddPackage = async (values) => {
+  const handleSavePackage = async (values) => {
     try {
-      await invoke('db:packages:add', {
+      const data = {
         name: values.name,
         category: values.category || '',
         description: values.description || '',
@@ -280,32 +255,18 @@ export default function Inventory() {
         sessions: Number(values.sessions) || 1,
         validityDays: Number(values.validityDays) || 30,
         services: values.services || [],
-      });
-      message.success('Thêm gói thành công');
+      };
+      if (isEditMode && selectedItem) {
+        await invoke('db:packages:update', selectedItem.id, data);
+        message.success('Cập nhật thành công');
+      } else {
+        await invoke('db:packages:add', data);
+        message.success('Thêm gói thành công');
+      }
       form.resetFields();
       setIsModalOpen(false);
-      loadPackages();
-    } catch (error) {
-      message.error('Lỗi: ' + error.message);
-    }
-  };
-
-  const handleUpdatePackage = async (values) => {
-    try {
-      await invoke('db:packages:update', selectedItem.id, {
-        name: values.name,
-        category: values.category || '',
-        description: values.description || '',
-        price: Number(values.price) || 0,
-        sessions: Number(values.sessions) || 1,
-        validityDays: Number(values.validityDays) || 30,
-        services: values.services || [],
-      });
-      message.success('Cập nhật thành công');
       setIsEditMode(false);
-      form.resetFields();
-      setIsModalOpen(false);
-      loadPackages();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
@@ -315,101 +276,126 @@ export default function Inventory() {
     try {
       await invoke('db:packages:delete', id);
       message.success('Xóa thành công');
-      loadPackages();
+      loadAll();
     } catch (error) {
       message.error('Lỗi: ' + error.message);
     }
   };
 
-  // ============ COMPUTED ============
-  const getFilteredData = () => {
-    const data = activeTab === 'products' ? products : activeTab === 'services' ? services : packages;
-    return data.filter((item) =>
-      (item.name?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (item.category?.toLowerCase().includes(searchText.toLowerCase()))
+  // ============ SEARCH FILTER ============
+  const filterData = (data) => {
+    if (!searchText) return data;
+    const s = searchText.toLowerCase();
+    return data.filter(item =>
+      (item.name || '').toLowerCase().includes(s) ||
+      (item.category || '').toLowerCase().includes(s) ||
+      (item.supplier || '').toLowerCase().includes(s)
     );
+  };
+
+  // ============ OPEN EDIT MODAL ============
+  const openEdit = (type, record) => {
+    setSelectedType(type);
+    setSelectedItem(record);
+    setIsEditMode(true);
+    setIsModalOpen(true);
+    if (type === 'products') {
+      form.setFieldsValue({
+        name: record.name,
+        category: record.category,
+        quantity: record.quantity,
+        sellPrice: record.unit_price || record.unitPrice || 0,
+        reorderLevel: record.reorder_level || record.reorderLevel || 10,
+        supplier: record.supplier,
+      });
+    } else if (type === 'services') {
+      form.setFieldsValue({
+        name: record.name,
+        category: record.category,
+        price: record.price,
+        duration: record.duration,
+        description: record.description,
+        steps: record.steps,
+        commissionRate: record.commission_rate || record.commissionRate || 0,
+      });
+    } else {
+      form.setFieldsValue({
+        name: record.name,
+        category: record.category,
+        price: record.price,
+        sessions: record.sessions,
+        validityDays: record.validity_days || record.validityDays || 30,
+        description: record.description,
+        services: record.services,
+      });
+    }
+  };
+
+  const openAdd = (type) => {
+    setSelectedType(type);
+    setSelectedItem(null);
+    setIsEditMode(false);
+    form.resetFields();
+    setIsModalOpen(true);
   };
 
   // ============ COLUMNS ============
   const productColumns = [
     {
-      title: 'Tên Sản Phẩm',
-      dataIndex: 'name',
-      key: 'name',
-      width: 150,
+      title: 'Tên Sản Phẩm', dataIndex: 'name', key: 'name', width: 180,
+      sorter: (a, b) => (a.name || '').localeCompare(b.name || ''),
     },
     {
-      title: 'Danh Mục',
-      dataIndex: 'category',
-      key: 'category',
-      width: 120,
+      title: 'Danh Mục', dataIndex: 'category', key: 'category', width: 120,
+      render: (v) => v ? <Tag>{v}</Tag> : '-',
+      filters: [...new Set(products.map(p => p.category).filter(Boolean))].map(c => ({ text: c, value: c })),
+      onFilter: (value, record) => record.category === value,
     },
     {
-      title: 'Số Lượng',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      width: 100,
-      render: (qty) => qty || 0,
+      title: 'Tồn Kho', key: 'quantity', width: 100, align: 'center',
+      render: (_, r) => {
+        const qty = r.quantity || 0;
+        const level = r.reorder_level || r.reorderLevel || 10;
+        const color = qty === 0 ? '#f5222d' : qty <= level ? '#faad14' : '#52c41a';
+        return <Tag color={color} style={{ fontWeight: 600 }}>{qty}</Tag>;
+      },
+      sorter: (a, b) => (a.quantity || 0) - (b.quantity || 0),
     },
     {
-      title: 'Giá/Cái',
-      dataIndex: 'unitPrice',
-      key: 'unitPrice',
-      width: 120,
-      render: (price) => `${Number(price || 0).toLocaleString('vi-VN')} ₫`,
+      title: 'Giá Bán', key: 'price', width: 120, align: 'right',
+      render: (_, r) => `${Number(r.unit_price || r.unitPrice || 0).toLocaleString('vi-VN')}₫`,
+      sorter: (a, b) => (a.unit_price || a.unitPrice || 0) - (b.unit_price || b.unitPrice || 0),
     },
     {
-      title: 'Mục Tái Đặt',
-      dataIndex: 'reorderLevel',
-      key: 'reorderLevel',
-      width: 100,
-      render: (level) => level || 0,
-    },
-    {
-      title: 'Nhà Cung Cấp',
-      dataIndex: 'supplier',
-      key: 'supplier',
-      width: 120,
-    },
-    {
-      title: 'Giá Trị',
-      key: 'value',
-      width: 130,
-      render: (_, record) => {
-        const value = (record.quantity || 0) * (record.unitPrice || 0);
-        return `${Number(value).toLocaleString('vi-VN')} ₫`;
+      title: 'Giá Trị Kho', key: 'value', width: 130, align: 'right',
+      render: (_, r) => {
+        const v = (r.quantity || 0) * (r.unit_price || r.unitPrice || 0);
+        return <strong>{v.toLocaleString('vi-VN')}₫</strong>;
+      },
+      sorter: (a, b) => {
+        const va = (a.quantity || 0) * (a.unit_price || a.unitPrice || 0);
+        const vb = (b.quantity || 0) * (b.unit_price || b.unitPrice || 0);
+        return va - vb;
       },
     },
     {
-      title: 'Thao Tác',
-      key: 'action',
-      width: 150,
+      title: 'Mức Cảnh Báo', key: 'reorderLevel', width: 110, align: 'center',
+      render: (_, r) => r.reorder_level || r.reorderLevel || 10,
+    },
+    {
+      title: 'NCC', key: 'supplier', width: 120,
+      render: (_, r) => r.supplier || '-',
+      ellipsis: true,
+    },
+    {
+      title: 'Thao Tác', key: 'action', width: 120, fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setSelectedItem(record);
-              setSelectedType('products');
-              setIsEditMode(true);
-              setIsModalOpen(true);
-              form.setFieldsValue(record);
-            }}
-          >
-            Sửa
-          </Button>
-          <Popconfirm
-            title="Xóa sản phẩm"
-            description="Bạn có chắc chắn?"
-            onConfirm={guardAction(() => handleDeleteProduct(record.id))}
-            okText="Có"
-            cancelText="Không"
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              Xóa
-            </Button>
+          <Button type="link" size="small" icon={<EditOutlined />}
+            onClick={() => openEdit('products', record)} />
+          <Popconfirm title="Xóa sản phẩm này?" onConfirm={guardAction(() => handleDeleteProduct(record.id))}
+            okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -418,76 +404,42 @@ export default function Inventory() {
 
   const serviceColumns = [
     {
-      title: 'Tên Dịch Vụ',
-      dataIndex: 'name',
-      key: 'name',
-      width: 160,
+      title: 'Tên Dịch Vụ', dataIndex: 'name', key: 'name', width: 180,
+      sorter: (a, b) => (a.name || '').localeCompare(b.name || ''),
     },
     {
-      title: 'Danh Mục',
-      dataIndex: 'category',
-      key: 'category',
-      width: 120,
-      render: (text) => text || '-',
+      title: 'Danh Mục', dataIndex: 'category', key: 'category', width: 120,
+      render: (v) => v ? <Tag color="blue">{v}</Tag> : '-',
     },
     {
-      title: 'Giá',
-      dataIndex: 'price',
-      key: 'price',
-      width: 120,
-      render: (price) => `${Number(price || 0).toLocaleString('vi-VN')} ₫`,
+      title: 'Giá', key: 'price', width: 130, align: 'right',
+      render: (_, r) => <strong style={{ color: '#ff69b4' }}>{Number(r.price || 0).toLocaleString('vi-VN')}₫</strong>,
+      sorter: (a, b) => (a.price || 0) - (b.price || 0),
     },
     {
-      title: 'Thời Lượng',
-      dataIndex: 'duration',
-      key: 'duration',
-      width: 110,
-      render: (v) => `${v || 60} phút`,
+      title: 'Thời Lượng', key: 'duration', width: 100, align: 'center',
+      render: (_, r) => `${r.duration || 60} phút`,
     },
     {
-      title: 'Hoa Hồng (%)',
-      dataIndex: 'commissionRate',
-      key: 'commissionRate',
-      width: 110,
-      render: (v) => `${v || 0}%`,
+      title: 'Hoa Hồng', key: 'commission', width: 100, align: 'center',
+      render: (_, r) => {
+        const rate = r.commission_rate || r.commissionRate || 0;
+        return rate > 0 ? <Tag color="gold">{rate}%</Tag> : <span style={{ color: '#ccc' }}>0%</span>;
+      },
     },
     {
-      title: 'Mô Tả',
-      dataIndex: 'description',
-      key: 'description',
-      render: (text) => text || '-',
-      ellipsis: true,
+      title: 'Mô Tả', dataIndex: 'description', key: 'description',
+      render: (v) => v || '-', ellipsis: true,
     },
     {
-      title: 'Thao Tác',
-      key: 'action',
-      width: 150,
+      title: 'Thao Tác', key: 'action', width: 120, fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setSelectedItem(record);
-              setSelectedType('services');
-              setIsEditMode(true);
-              setIsModalOpen(true);
-              form.setFieldsValue(record);
-            }}
-          >
-            Sửa
-          </Button>
-          <Popconfirm
-            title="Xóa dịch vụ"
-            description="Bạn có chắc chắn?"
-            onConfirm={guardAction(() => handleDeleteService(record.id))}
-            okText="Có"
-            cancelText="Không"
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              Xóa
-            </Button>
+          <Button type="link" size="small" icon={<EditOutlined />}
+            onClick={() => openEdit('services', record)} />
+          <Popconfirm title="Xóa dịch vụ này?" onConfirm={guardAction(() => handleDeleteService(record.id))}
+            okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -496,456 +448,482 @@ export default function Inventory() {
 
   const packageColumns = [
     {
-      title: 'Tên Gói Liệu Trình',
-      dataIndex: 'name',
-      key: 'name',
-      width: 180,
+      title: 'Tên Gói', dataIndex: 'name', key: 'name', width: 180,
+      sorter: (a, b) => (a.name || '').localeCompare(b.name || ''),
     },
     {
-      title: 'Danh Mục',
-      dataIndex: 'category',
-      key: 'category',
-      width: 120,
-      render: (text) => text || '-',
+      title: 'Danh Mục', dataIndex: 'category', key: 'category', width: 120,
+      render: (v) => v ? <Tag color="purple">{v}</Tag> : '-',
     },
     {
-      title: 'Số Buổi',
-      dataIndex: 'sessions',
-      key: 'sessions',
-      width: 90,
-      render: (v) => `${v || 1} buổi`,
+      title: 'Số Buổi', dataIndex: 'sessions', key: 'sessions', width: 90, align: 'center',
+      render: (v) => <Tag color="cyan">{v || 1} buổi</Tag>,
     },
     {
-      title: 'Thời Hạn',
-      dataIndex: 'validityDays',
-      key: 'validityDays',
-      width: 100,
-      render: (v) => `${v || 30} ngày`,
+      title: 'Thời Hạn', key: 'validity', width: 100, align: 'center',
+      render: (_, r) => `${r.validity_days || r.validityDays || 30} ngày`,
     },
     {
-      title: 'Giá Gói',
-      dataIndex: 'price',
-      key: 'price',
-      width: 130,
-      render: (price) => `${Number(price || 0).toLocaleString('vi-VN')} ₫`,
+      title: 'Giá Gói', key: 'price', width: 130, align: 'right',
+      render: (_, r) => <strong style={{ color: '#722ed1' }}>{Number(r.price || 0).toLocaleString('vi-VN')}₫</strong>,
+      sorter: (a, b) => (a.price || 0) - (b.price || 0),
     },
     {
-      title: 'Mô Tả',
-      dataIndex: 'description',
-      key: 'description',
-      render: (text) => text || '-',
-      ellipsis: true,
+      title: 'Mô Tả', dataIndex: 'description', key: 'description',
+      render: (v) => v || '-', ellipsis: true,
     },
     {
-      title: 'Thao Tác',
-      key: 'action',
-      width: 150,
+      title: 'Thao Tác', key: 'action', width: 120, fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setSelectedItem(record);
-              setSelectedType('packages');
-              setIsEditMode(true);
-              setIsModalOpen(true);
-              form.setFieldsValue(record);
-            }}
-          >
-            Sửa
-          </Button>
-          <Popconfirm
-            title="Xóa gói"
-            description="Bạn có chắc chắn?"
-            onConfirm={guardAction(() => handleDeletePackage(record.id))}
-            okText="Có"
-            cancelText="Không"
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              Xóa
-            </Button>
+          <Button type="link" size="small" icon={<EditOutlined />}
+            onClick={() => openEdit('packages', record)} />
+          <Popconfirm title="Xóa gói này?" onConfirm={guardAction(() => handleDeletePackage(record.id))}
+            okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
     },
   ];
 
-  // ============ RENDER ============
-  return (
-    <Card title="Quản Lý Kho">
-      <Tabs
-        activeKey={activeTab}
-        onChange={(key) => {
-          setActiveTab(key);
-          setSearchText('');
-        }}
-        items={[
-          {
-            key: 'products',
-            label: 'Sản Phẩm',
-            children: (
-              <div>
-                <div
-                  style={{
-                    marginBottom: 16,
-                    display: 'flex',
-                    gap: 8,
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Input
-                    placeholder="Tìm kiếm sản phẩm..."
-                    prefix={<SearchOutlined />}
-                    style={{ width: 300 }}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                  />
-                  <Space>
-                    <Button
-                      icon={<ImportOutlined />}
-                      onClick={() => {
-                        importForm.resetFields();
-                        setIsImportModalOpen(true);
-                      }}
-                      style={{ borderColor: '#52c41a', color: '#52c41a' }}
-                    >
-                      Nhập Hàng
-                    </Button>
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => {
-                        setSelectedType('products');
-                        setIsEditMode(false);
-                        form.resetFields();
-                        setIsModalOpen(true);
-                      }}
-                      style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-                    >
-                      Thêm Sản Phẩm
-                    </Button>
-                  </Space>
-                </div>
-                <Spin spinning={productsLoading}>
-                  {getFilteredData().length === 0 ? (
-                    <Empty description="Không có sản phẩm" />
-                  ) : (
-                    <Table
-                      columns={productColumns}
-                      dataSource={getFilteredData().map((p, i) => ({
-                        ...p,
-                        key: p.id || i,
-                      }))}
-                      pagination={{ pageSize: 10 }}
-                      scroll={{ x: 1200 }}
-                    />
-                  )}
-                </Spin>
-              </div>
-            ),
-          },
-          {
-            key: 'services',
-            label: 'Dịch Vụ',
-            children: (
-              <div>
-                <div
-                  style={{
-                    marginBottom: 16,
-                    display: 'flex',
-                    gap: 8,
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Input
-                    placeholder="Tìm kiếm dịch vụ..."
-                    prefix={<SearchOutlined />}
-                    style={{ width: 300 }}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                  />
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                      setSelectedType('services');
-                      setIsEditMode(false);
-                      form.resetFields();
-                      setIsModalOpen(true);
-                    }}
-                    style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-                  >
-                    Thêm Dịch Vụ
-                  </Button>
-                </div>
-                <Spin spinning={servicesLoading}>
-                  {getFilteredData().length === 0 ? (
-                    <Empty description="Không có dịch vụ" />
-                  ) : (
-                    <Table
-                      columns={serviceColumns}
-                      dataSource={getFilteredData().map((s, i) => ({
-                        ...s,
-                        key: s.id || i,
-                      }))}
-                      pagination={{ pageSize: 10 }}
-                      scroll={{ x: 1200 }}
-                    />
-                  )}
-                </Spin>
-              </div>
-            ),
-          },
-          {
-            key: 'packages',
-            label: 'Gói',
-            children: (
-              <div>
-                <div
-                  style={{
-                    marginBottom: 16,
-                    display: 'flex',
-                    gap: 8,
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Input
-                    placeholder="Tìm kiếm gói..."
-                    prefix={<SearchOutlined />}
-                    style={{ width: 300 }}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                  />
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                      setSelectedType('packages');
-                      setIsEditMode(false);
-                      form.resetFields();
-                      setIsModalOpen(true);
-                    }}
-                    style={{ background: '#ff69b4', borderColor: '#ff69b4' }}
-                  >
-                    Thêm Gói
-                  </Button>
-                </div>
-                <Spin spinning={packagesLoading}>
-                  {getFilteredData().length === 0 ? (
-                    <Empty description="Không có gói" />
-                  ) : (
-                    <Table
-                      columns={packageColumns}
-                      dataSource={getFilteredData().map((pkg, i) => ({
-                        ...pkg,
-                        key: pkg.id || i,
-                      }))}
-                      pagination={{ pageSize: 10 }}
-                      scroll={{ x: 1200 }}
-                    />
-                  )}
-                </Spin>
-              </div>
-            ),
-          },
-        ]}
-      />
+  const movementColumns = [
+    {
+      title: 'Ngày', key: 'date', width: 150,
+      render: (_, r) => {
+        const d = r.date || r.created_at;
+        return d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '-';
+      },
+      sorter: (a, b) => dayjs(a.date || a.created_at).valueOf() - dayjs(b.date || b.created_at).valueOf(),
+      defaultSortOrder: 'descend',
+    },
+    {
+      title: 'Sản Phẩm', key: 'item', width: 180,
+      render: (_, r) => r.item_name || r.itemName || '-',
+    },
+    {
+      title: 'Loại', key: 'type', width: 100, align: 'center',
+      render: (_, r) => {
+        const t = r.type;
+        return t === 'import'
+          ? <Tag color="green" icon={<ImportOutlined />}>Nhập</Tag>
+          : <Tag color="red" icon={<ExportOutlined />}>Xuất</Tag>;
+      },
+      filters: [{ text: 'Nhập', value: 'import' }, { text: 'Xuất', value: 'export' }],
+      onFilter: (v, r) => r.type === v,
+    },
+    {
+      title: 'Số Lượng', key: 'quantity', width: 100, align: 'center',
+      render: (_, r) => {
+        const qty = r.quantity || 0;
+        return <span style={{ color: qty > 0 ? '#52c41a' : '#f5222d', fontWeight: 600 }}>
+          {qty > 0 ? '+' : ''}{qty}
+        </span>;
+      },
+    },
+    {
+      title: 'Đơn Giá', key: 'unitCost', width: 120, align: 'right',
+      render: (_, r) => {
+        const cost = r.unit_cost || r.unitCost || 0;
+        return cost > 0 ? `${Number(cost).toLocaleString('vi-VN')}₫` : '-';
+      },
+    },
+    {
+      title: 'Tổng Tiền', key: 'totalCost', width: 130, align: 'right',
+      render: (_, r) => {
+        const cost = r.total_cost || r.totalCost || 0;
+        return cost > 0 ? <strong>{Number(cost).toLocaleString('vi-VN')}₫</strong> : '-';
+      },
+    },
+    {
+      title: 'Ghi Chú', key: 'notes', render: (_, r) => r.notes || '-', ellipsis: true,
+    },
+    {
+      title: 'Người Thực Hiện', key: 'user', width: 120,
+      render: (_, r) => r.user || '-',
+    },
+  ];
 
-      {/* Add/Edit Modal */}
+  // ============ FORM SUBMIT ============
+  const handleFormSubmit = (values) => {
+    if (selectedType === 'products') return handleSaveProduct(values);
+    if (selectedType === 'services') return handleSaveService(values);
+    return handleSavePackage(values);
+  };
+
+  const typeLabels = { products: 'Sản Phẩm', services: 'Dịch Vụ', packages: 'Gói' };
+
+  // ============ RENDER ============
+  if (loading) return <Spin style={{ display: 'flex', justifyContent: 'center', marginTop: 100 }} />;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ margin: 0 }}>Quản Lý Kho & Dịch Vụ</h2>
+        <Button icon={<BarChartOutlined />} onClick={loadAll} loading={loading}>Làm Mới</Button>
+      </div>
+
+      {/* ===== STATS ===== */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderLeft: '4px solid #1890ff' }}>
+            <Statistic title="Tổng Sản Phẩm" value={totalProducts}
+              prefix={<InboxOutlined style={{ color: '#1890ff' }} />}
+              valueStyle={{ color: '#1890ff' }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderLeft: '4px solid #52c41a' }}>
+            <Statistic title="Tổng Tồn Kho" value={totalQuantity}
+              prefix={<ShoppingOutlined style={{ color: '#52c41a' }} />}
+              valueStyle={{ color: '#52c41a' }} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderLeft: '4px solid #ff69b4' }}>
+            <Statistic title="Giá Trị Kho" value={totalStockValue} suffix="₫"
+              prefix={<DollarOutlined style={{ color: '#ff69b4' }} />}
+              valueStyle={{ color: '#ff69b4' }}
+              formatter={(v) => Number(v).toLocaleString('vi-VN')} />
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small" style={{ borderLeft: `4px solid ${lowStockItems.length > 0 ? '#faad14' : '#d9d9d9'}` }}>
+            <Statistic title="Sắp Hết Hàng" value={lowStockItems.length}
+              prefix={<WarningOutlined style={{ color: lowStockItems.length > 0 ? '#faad14' : '#d9d9d9' }} />}
+              valueStyle={{ color: lowStockItems.length > 0 ? '#faad14' : '#d9d9d9' }} />
+            {outOfStockItems.length > 0 && (
+              <div style={{ fontSize: 12, color: '#f5222d', marginTop: 4 }}>
+                {outOfStockItems.length} hết hàng
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ===== TABS ===== */}
+      <Card>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(key) => { setActiveTab(key); setSearchText(''); }}
+          items={[
+            {
+              key: 'products',
+              label: <span><InboxOutlined /> Sản Phẩm <Badge count={totalProducts} style={{ backgroundColor: '#1890ff', marginLeft: 4 }} size="small" /></span>,
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <Input placeholder="Tìm sản phẩm, danh mục, NCC..." prefix={<SearchOutlined />}
+                      style={{ width: 300 }} value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+                    <Space wrap>
+                      <Button icon={<ExportOutlined />} onClick={() => { exportForm.resetFields(); setIsExportModalOpen(true); }}
+                        style={{ borderColor: '#faad14', color: '#faad14' }}>
+                        Xuất Kho
+                      </Button>
+                      <Button icon={<ImportOutlined />} onClick={() => { importForm.resetFields(); setIsImportModalOpen(true); }}
+                        style={{ borderColor: '#52c41a', color: '#52c41a' }}>
+                        Nhập Hàng
+                      </Button>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdd('products')}
+                        style={{ background: '#ff69b4', borderColor: '#ff69b4' }}>
+                        Thêm Sản Phẩm
+                      </Button>
+                    </Space>
+                  </div>
+
+                  {/* Low stock warning */}
+                  {lowStockItems.length > 0 && (
+                    <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fff7e6', border: '1px solid #ffe58f', borderRadius: 6 }}>
+                      <WarningOutlined style={{ color: '#faad14', marginRight: 8 }} />
+                      <strong style={{ color: '#d48806' }}>Cảnh báo:</strong>{' '}
+                      {lowStockItems.map(item => (
+                        <Tag key={item.id} color={item.quantity === 0 ? 'red' : 'orange'} style={{ margin: '2px' }}>
+                          {item.name}: {item.quantity || 0}
+                        </Tag>
+                      ))}
+                    </div>
+                  )}
+
+                  <Table
+                    columns={productColumns}
+                    dataSource={filterData(products).map((p, i) => ({ ...p, key: p.id || i }))}
+                    pagination={{ pageSize: 15, showTotal: (total) => `${total} sản phẩm` }}
+                    scroll={{ x: 1100 }}
+                    size="small"
+                    locale={{ emptyText: <Empty description="Chưa có sản phẩm nào" /> }}
+                    summary={(data) => {
+                      if (data.length === 0) return null;
+                      const totalVal = data.reduce((s, r) => s + (r.quantity || 0) * (r.unit_price || r.unitPrice || 0), 0);
+                      const totalQty = data.reduce((s, r) => s + (r.quantity || 0), 0);
+                      return (
+                        <Table.Summary.Row style={{ background: '#fafafa', fontWeight: 600 }}>
+                          <Table.Summary.Cell index={0} colSpan={2}>Tổng Cộng</Table.Summary.Cell>
+                          <Table.Summary.Cell index={2} align="center">{totalQty}</Table.Summary.Cell>
+                          <Table.Summary.Cell index={3} />
+                          <Table.Summary.Cell index={4} align="right">{totalVal.toLocaleString('vi-VN')}₫</Table.Summary.Cell>
+                          <Table.Summary.Cell index={5} colSpan={3} />
+                        </Table.Summary.Row>
+                      );
+                    }}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'services',
+              label: <span><AppstoreOutlined /> Dịch Vụ <Badge count={services.length} style={{ backgroundColor: '#ff69b4', marginLeft: 4 }} size="small" /></span>,
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <Input placeholder="Tìm dịch vụ..." prefix={<SearchOutlined />}
+                      style={{ width: 300 }} value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdd('services')}
+                      style={{ background: '#ff69b4', borderColor: '#ff69b4' }}>
+                      Thêm Dịch Vụ
+                    </Button>
+                  </div>
+                  <Table
+                    columns={serviceColumns}
+                    dataSource={filterData(services).map((s, i) => ({ ...s, key: s.id || i }))}
+                    pagination={{ pageSize: 15, showTotal: (total) => `${total} dịch vụ` }}
+                    scroll={{ x: 900 }}
+                    size="small"
+                    locale={{ emptyText: <Empty description="Chưa có dịch vụ nào" /> }}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'packages',
+              label: <span><GiftOutlined /> Gói <Badge count={packages.length} style={{ backgroundColor: '#722ed1', marginLeft: 4 }} size="small" /></span>,
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <Input placeholder="Tìm gói..." prefix={<SearchOutlined />}
+                      style={{ width: 300 }} value={searchText} onChange={(e) => setSearchText(e.target.value)} />
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdd('packages')}
+                      style={{ background: '#722ed1', borderColor: '#722ed1' }}>
+                      Thêm Gói
+                    </Button>
+                  </div>
+                  <Table
+                    columns={packageColumns}
+                    dataSource={filterData(packages).map((p, i) => ({ ...p, key: p.id || i }))}
+                    pagination={{ pageSize: 15, showTotal: (total) => `${total} gói` }}
+                    scroll={{ x: 900 }}
+                    size="small"
+                    locale={{ emptyText: <Empty description="Chưa có gói nào" /> }}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'movements',
+              label: <span><HistoryOutlined /> Lịch Sử Nhập/Xuất <Badge count={stockMovements.length} style={{ marginLeft: 4 }} size="small" /></span>,
+              children: (
+                <div>
+                  <Table
+                    columns={movementColumns}
+                    dataSource={stockMovements.map((m, i) => ({ ...m, key: m.id || i }))}
+                    pagination={{ pageSize: 20, showTotal: (total) => `${total} lượt` }}
+                    scroll={{ x: 1000 }}
+                    size="small"
+                    locale={{ emptyText: <Empty description="Chưa có lịch sử nhập/xuất" /> }}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      {/* ===== ADD/EDIT MODAL ===== */}
       <Modal
-        title={
-          isEditMode
-            ? `Chỉnh Sửa ${
-                selectedType === 'products'
-                  ? 'Sản Phẩm'
-                  : selectedType === 'services'
-                  ? 'Dịch Vụ'
-                  : 'Gói'
-              }`
-            : `Thêm ${
-                selectedType === 'products'
-                  ? 'Sản Phẩm'
-                  : selectedType === 'services'
-                  ? 'Dịch Vụ'
-                  : 'Gói'
-              } Mới`
-        }
+        title={`${isEditMode ? 'Chỉnh Sửa' : 'Thêm'} ${typeLabels[selectedType]}`}
         open={isModalOpen}
         onOk={() => form.submit()}
-        onCancel={() => {
-          setIsModalOpen(false);
-          form.resetFields();
-        }}
+        onCancel={() => { setIsModalOpen(false); form.resetFields(); }}
         okText={isEditMode ? 'Cập Nhật' : 'Thêm'}
         cancelText="Hủy"
+        destroyOnClose
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={
-            selectedType === 'products'
-              ? isEditMode
-                ? guardAction(handleUpdateProduct)
-                : handleAddProduct
-              : selectedType === 'services'
-              ? isEditMode
-                ? guardAction(handleUpdateService)
-                : handleAddService
-              : isEditMode
-              ? guardAction(handleUpdatePackage)
-              : handleAddPackage
-          }
-        >
-          <Form.Item
-            label={selectedType === 'services' ? 'Tên Dịch Vụ' : 'Tên'}
-            name="name"
-            rules={[{ required: true, message: 'Vui lòng nhập tên' }]}
-          >
-            <Input />
+        <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
+          <Form.Item label="Tên" name="name" rules={[{ required: true, message: 'Vui lòng nhập tên' }]}>
+            <Input placeholder={`Nhập tên ${typeLabels[selectedType].toLowerCase()}...`} />
           </Form.Item>
-
           <Form.Item label="Danh Mục" name="category">
-            <Input />
+            <Input placeholder="VD: Mỹ phẩm, Đồ uống, Chăm sóc da..." />
           </Form.Item>
 
           {selectedType === 'products' && (
             <>
-              <Form.Item label="Số Lượng" name="quantity">
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item label="Giá/Cái (₫)" name="unitPrice">
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item label="Mục Tái Đặt" name="reorderLevel">
-                <InputNumber min={0} style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item label="Nhà Cung Cấp" name="supplier">
-                <Input />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item label="Số Lượng Ban Đầu" name="quantity">
+                    <InputNumber min={0} style={{ width: '100%' }} placeholder="0" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="Giá Bán (₫)" name="sellPrice" rules={[{ required: true, message: 'Nhập giá bán' }]}>
+                    <InputNumber min={0} style={{ width: '100%' }}
+                      formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                      parser={(v) => v.replace(/,/g, '')} placeholder="VD: 100,000" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item label="Mức Cảnh Báo Hết Hàng" name="reorderLevel">
+                    <InputNumber min={0} style={{ width: '100%' }} placeholder="10" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="Nhà Cung Cấp" name="supplier">
+                    <Input placeholder="Tên NCC..." />
+                  </Form.Item>
+                </Col>
+              </Row>
             </>
           )}
 
           {selectedType === 'services' && (
             <>
-              <Form.Item label="Giá (₫)" name="price">
-                <InputNumber
-                  min={0}
-                  style={{ width: '100%' }}
-                  formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
-                  parser={(v) => v.replace(/,/g, '')}
-                />
-              </Form.Item>
-              <Form.Item label="Thời Lượng (phút)" name="duration">
-                <InputNumber min={1} style={{ width: '100%' }} placeholder="60" />
-              </Form.Item>
-              <Form.Item label="Tỷ Lệ Hoa Hồng (%)" name="commissionRate">
-                <InputNumber min={0} max={100} step={0.1} style={{ width: '100%' }} placeholder="0" />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item label="Giá (₫)" name="price" rules={[{ required: true, message: 'Nhập giá' }]}>
+                    <InputNumber min={0} style={{ width: '100%' }}
+                      formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                      parser={(v) => v.replace(/,/g, '')} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="Thời Lượng (phút)" name="duration">
+                    <InputNumber min={1} style={{ width: '100%' }} placeholder="60" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="Hoa Hồng (%)" name="commissionRate">
+                    <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} placeholder="10" />
+                  </Form.Item>
+                </Col>
+              </Row>
               <Form.Item label="Mô Tả" name="description">
                 <Input.TextArea rows={2} placeholder="Mô tả dịch vụ..." />
               </Form.Item>
               <Form.Item label="Các Bước Thực Hiện" name="steps">
-                <Input.TextArea rows={3} placeholder="Bước 1: ...&#10;Bước 2: ...&#10;Bước 3: ..." />
+                <Input.TextArea rows={3} placeholder="Bước 1: ...&#10;Bước 2: ..." />
               </Form.Item>
             </>
           )}
 
           {selectedType === 'packages' && (
             <>
-              <Form.Item label="Số Buổi" name="sessions">
-                <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số buổi" />
-              </Form.Item>
-              <Form.Item label="Thời Hạn (ngày)" name="validityDays">
-                <InputNumber min={1} style={{ width: '100%' }} placeholder="30" />
-              </Form.Item>
-              <Form.Item label="Giá Gói (₫)" name="price">
-                <InputNumber
-                  min={0}
-                  style={{ width: '100%' }}
-                  formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
-                  parser={(v) => v.replace(/,/g, '')}
-                />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item label="Giá Gói (₫)" name="price" rules={[{ required: true, message: 'Nhập giá' }]}>
+                    <InputNumber min={0} style={{ width: '100%' }}
+                      formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                      parser={(v) => v.replace(/,/g, '')} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="Số Buổi" name="sessions">
+                    <InputNumber min={1} style={{ width: '100%' }} placeholder="1" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="Thời Hạn (ngày)" name="validityDays">
+                    <InputNumber min={1} style={{ width: '100%' }} placeholder="30" />
+                  </Form.Item>
+                </Col>
+              </Row>
               <Form.Item label="Mô Tả" name="description">
-                <Input.TextArea rows={3} placeholder="Mô tả nội dung gói liệu trình..." />
+                <Input.TextArea rows={3} placeholder="Mô tả gói..." />
               </Form.Item>
             </>
           )}
         </Form>
       </Modal>
 
-      {/* Import Stock Modal */}
+      {/* ===== IMPORT MODAL ===== */}
       <Modal
-        title="Nhập Hàng"
+        title={<span><ImportOutlined style={{ color: '#52c41a' }} /> Nhập Hàng Vào Kho</span>}
         open={isImportModalOpen}
         onOk={() => importForm.submit()}
-        onCancel={() => {
-          setIsImportModalOpen(false);
-          importForm.resetFields();
-        }}
-        okText="Nhập Hàng"
+        onCancel={() => { setIsImportModalOpen(false); importForm.resetFields(); }}
+        okText="Xác Nhận Nhập"
         cancelText="Hủy"
         okButtonProps={{ style: { background: '#52c41a', borderColor: '#52c41a' } }}
+        destroyOnClose
       >
-        <Form
-          form={importForm}
-          layout="vertical"
-          onFinish={handleImportStock}
-        >
-          <Form.Item
-            label="Sản Phẩm"
-            name="productId"
-            rules={[{ required: true, message: 'Vui lòng chọn sản phẩm' }]}
-          >
-            <Select
-              placeholder="Chọn sản phẩm cần nhập"
-              showSearch
-              optionFilterProp="label"
-              options={products.map(p => ({
-                label: `${p.name} (Kho: ${p.quantity || 0})`,
-                value: p.id,
-              }))}
-            />
+        <Form form={importForm} layout="vertical" onFinish={handleImportStock}>
+          <Form.Item label="Sản Phẩm" name="productId" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
+            <Select placeholder="Chọn sản phẩm cần nhập..." showSearch optionFilterProp="label"
+              options={products.map(p => ({ label: `${p.name} (Kho: ${p.quantity || 0})`, value: p.id }))} />
           </Form.Item>
-          <Form.Item
-            label="Số Lượng Nhập"
-            name="quantity"
-            rules={[{ required: true, message: 'Vui lòng nhập số lượng' }]}
-          >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số lượng" />
-          </Form.Item>
-          <Form.Item
-            label="Đơn Giá Nhập (₫)"
-            name="unitCost"
-            extra="Không bắt buộc. Nếu nhập sẽ tự ghi vào báo cáo chi phí."
-          >
-            <InputNumber
-              min={0}
-              style={{ width: '100%' }}
-              formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
-              parser={(v) => v.replace(/,/g, '')}
-              placeholder="Ví dụ: 50,000"
-            />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Số Lượng Nhập" name="quantity" rules={[{ required: true, message: 'Nhập SL' }]}>
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số lượng" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Đơn Giá Nhập (₫)" name="unitCost"
+                extra="Nếu nhập sẽ tự ghi vào chi phí">
+                <InputNumber min={0} style={{ width: '100%' }}
+                  formatter={(v) => v ? `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
+                  parser={(v) => v.replace(/,/g, '')} placeholder="VD: 50,000" />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item label="Phương Thức Thanh Toán" name="payment_method" initialValue="cash">
-            <Select
-              options={[
-                { label: 'Tiền mặt', value: 'cash' },
-                { label: 'Chuyển khoản', value: 'transfer' },
-                { label: 'Thẻ', value: 'card' },
-              ]}
-            />
+            <Select options={[
+              { label: 'Tiền mặt', value: 'cash' },
+              { label: 'Chuyển khoản', value: 'transfer' },
+              { label: 'Thẻ', value: 'card' },
+            ]} />
           </Form.Item>
-          <Form.Item
-            label="Ghi Chú"
-            name="notes"
-          >
+          <Form.Item label="Ghi Chú" name="notes">
             <Input.TextArea rows={2} placeholder="Ghi chú nhập hàng..." />
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+
+      {/* ===== EXPORT MODAL ===== */}
+      <Modal
+        title={<span><ExportOutlined style={{ color: '#faad14' }} /> Xuất Kho</span>}
+        open={isExportModalOpen}
+        onOk={() => exportForm.submit()}
+        onCancel={() => { setIsExportModalOpen(false); exportForm.resetFields(); }}
+        okText="Xác Nhận Xuất"
+        cancelText="Hủy"
+        okButtonProps={{ style: { background: '#faad14', borderColor: '#faad14' } }}
+        destroyOnClose
+      >
+        <Form form={exportForm} layout="vertical" onFinish={handleExportStock}>
+          <Form.Item label="Sản Phẩm" name="productId" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
+            <Select placeholder="Chọn sản phẩm cần xuất..." showSearch optionFilterProp="label"
+              options={products.filter(p => (p.quantity || 0) > 0).map(p => ({
+                label: `${p.name} (Kho: ${p.quantity || 0})`, value: p.id,
+              }))} />
+          </Form.Item>
+          <Form.Item label="Số Lượng Xuất" name="quantity" rules={[{ required: true, message: 'Nhập SL' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="Nhập số lượng xuất" />
+          </Form.Item>
+          <Form.Item label="Lý Do Xuất" name="reason">
+            <Select placeholder="Chọn lý do..." allowClear options={[
+              { label: 'Hư hỏng / Hết hạn', value: 'Hư hỏng / Hết hạn' },
+              { label: 'Trả nhà cung cấp', value: 'Trả NCC' },
+              { label: 'Sử dụng nội bộ', value: 'Nội bộ' },
+              { label: 'Mất mát / Thất thoát', value: 'Thất thoát' },
+              { label: 'Khác', value: 'Khác' },
+            ]} />
+          </Form.Item>
+          <Form.Item label="Ghi Chú" name="notes">
+            <Input.TextArea rows={2} placeholder="Ghi chú xuất kho..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
 }
